@@ -255,22 +255,30 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
     print("--- %s seconds ---" % (time.time() - start_time))
 
 
+import argparse
+
+# create the parser
+parser = argparse.ArgumentParser()
+parser.add_argument('--bag_path', type=str, required=True, help='Path to the bag')
+
+# parse the arguments
+args = parser.parse_args()
 
 # Define image and output directories
-directory_path = os.path.join(bag_path, '/data/assets/Image/')
+directory_path = os.path.join(args.bag_path, '/data/assets/Image/') # args.bag_path
 output_directory = '/content/images/cropped/'
 
 # Your CSV loading here
-csv_path = f'/content/{os.path.basename(bag_path)}_Field_2.csv'
+csv_path = f'/content/{os.path.basename(args.bag_path)}_Field_2.csv'
 
 # Template path
 template_path = '/content/template.jpg'
 
 # Output CSV path
-output_csv_path =  f'/content/{os.path.basename(bag_path)}_Field_2_Cropped_Results_DataFrame.csv'
+output_csv_path =  f'/content/{os.path.basename(args.bag_path)}_Field_2_Cropped_Results_DataFrame.csv'
 
 # model loading here
-from Crop_Detector_1.0.0 import load_model
+from Crop_Detector_1_0_0 import load_model
 model = load_model('/Imgresize2 and Grey data_crop_proper_or_not prof crop data.hdf5')  
 
 # preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model)
