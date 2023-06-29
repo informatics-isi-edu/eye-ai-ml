@@ -279,7 +279,7 @@ output_csv_path =  f'/content/{os.path.basename(args.bag_path)}_Field_2_Cropped_
 
 # model loading here
 from Crop_Detector_1_0_0 import load_model
-model = load_model('/Imgresize2 and Grey data_crop_proper_or_not prof crop data.hdf5')  
+model = load_model('Imgresize2 and Grey data_crop_proper_or_not prof crop data.hdf5')  
 
 # preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model)
 preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_directory, model)
