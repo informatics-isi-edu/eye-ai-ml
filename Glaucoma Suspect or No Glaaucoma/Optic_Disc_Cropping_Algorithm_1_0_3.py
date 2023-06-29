@@ -148,7 +148,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                     img_path = f'{output_path}{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
                     if not cv.imwrite(img_path, resized_img):
                         print(f"Error: Image could not be saved at: {img_path}")
-                    print(f"Image {img_name} ({color_channel}) cropped and saved.")
+                    print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path}.")
                     crop_success = True  # Set the flag
 
                     # Append the information to the results data list
@@ -211,7 +211,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                     img_path = f'{output_path}{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
                     if not cv.imwrite(img_path, resized_img):
                         print(f"Error: Image could not be saved at: {img_path}")
-                    print(f"Image {img_name} ({color_channel}) resized without cropping and saved.")
+                    print(f"Image {img_name} ({color_channel}) resized without cropping and saved at {img_path}.")
                     crop_success = True  # Set the flag
 
                     # Append the information to the results data list
@@ -229,7 +229,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
             raw_img_path = f'{output_path}{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
             if not cv.imwrite(raw_img_path, img_rs):
                 print(f"Error: Raw image could not be saved at: {raw_img_path}")
-            print(f"Raw Image {img_name} saved.")
+            print(f"Raw Image {img_name} saved  at {img_path}.")
 
                     # Append the information to the DataFrame
             results_data.append({"Image Name": img_name,
