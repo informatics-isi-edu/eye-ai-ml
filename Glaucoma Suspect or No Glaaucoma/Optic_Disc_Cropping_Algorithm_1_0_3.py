@@ -265,7 +265,7 @@ parser.add_argument('--bag_path', type=str, required=True, help='Path to the bag
 args = parser.parse_args()
 
 # Define image and output directories
-directory_path = os.path.join(args.bag_path, '/data/assets/Image/') # args.bag_path
+directory_path = os.path.join(args.bag_path, 'data/assets/Image/') # args.bag_path
 output_directory = '/content/images/cropped/'
 
 # Your CSV loading here
