@@ -149,7 +149,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                     # img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
 
                     # Define the directory path
-                    dir_path = f'{output_path}source_{rid}/'
+                    dir_path = f'{output_path}{rid}/'
 
                     # Create the directory if it does not exist
                     os.makedirs(dir_path, exist_ok=True)
@@ -223,7 +223,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                     # img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
 
                     # Define the directory path
-                    dir_path = f'{output_path}source_{rid}/'
+                    dir_path = f'{output_path}{rid}/'
 
                     # Create the directory if it does not exist
                     os.makedirs(dir_path, exist_ok=True)
@@ -252,7 +252,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
             # raw_img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
 
             # Define the directory path
-            dir_path = f'{output_path}source_{rid}/'
+            dir_path = f'{output_path}{rid}/'
 
             # Create the directory if it does not exist
             os.makedirs(dir_path, exist_ok=True)
