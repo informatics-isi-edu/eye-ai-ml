@@ -146,7 +146,17 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                 prediction = predict_optic_disc_center(resized_img, model)  # Replace with your function
                 if prediction == "Proper":
                     # img_path = f'{output_path}{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
-                    img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+                    # img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+
+                    # Define the directory path
+                    dir_path = f'{output_path}source_{rid}/'
+
+                    # Create the directory if it does not exist
+                    os.makedirs(dir_path, exist_ok=True)
+
+                    # Define the image paths
+                    img_path = f'{dir_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+                    
                     if not cv.imwrite(img_path, resized_img):
                         print(f"Error: Image could not be saved at: {img_path}")
                     print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path}.")
@@ -210,7 +220,17 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                 prediction = predict_optic_disc_center(resized_img, model)  # Replace with your function
                 if prediction == "Proper":
                     # img_path = f'{output_path}{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
-                    img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+                    # img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+
+                    # Define the directory path
+                    dir_path = f'{output_path}source_{rid}/'
+
+                    # Create the directory if it does not exist
+                    os.makedirs(dir_path, exist_ok=True)
+
+                    # Define the image paths
+                    img_path = f'{dir_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+
                     if not cv.imwrite(img_path, resized_img):
                         print(f"Error: Image could not be saved at: {img_path}")
                     print(f"Image {img_name} ({color_channel}) resized without cropping and saved at {img_path}.")
@@ -229,7 +249,17 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
         if not crop_success:
             img_rs = crop_to_eye(img)
             # raw_img_path = f'{output_path}{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
-            raw_img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+            # raw_img_path = f'{output_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+
+            # Define the directory path
+            dir_path = f'{output_path}source_{rid}/'
+
+            # Create the directory if it does not exist
+            os.makedirs(dir_path, exist_ok=True)
+
+            # Define the image paths
+            raw_img_path = f'{dir_path}{"Cropped"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+    
             if not cv.imwrite(raw_img_path, img_rs):
                 print(f"Error: Raw image could not be saved at: {raw_img_path}")
             print(f"Raw Image {img_name} saved  at {img_path}.")
