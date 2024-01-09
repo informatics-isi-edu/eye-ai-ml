@@ -92,7 +92,7 @@ import os
 
 
 # Load the model
-model.load_weights('presentation_model_for_Seminar.h5')
+model.load_weights('/content/drive/Shareddrives/ISI Dataset/presentation_model_for_Seminar.h5')
 
 # Define the path
 path = '/content/images/cropped/'
