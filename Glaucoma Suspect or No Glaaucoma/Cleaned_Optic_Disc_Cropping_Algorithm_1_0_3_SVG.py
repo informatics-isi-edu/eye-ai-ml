@@ -121,7 +121,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
 
     for index, row in csv_data.iterrows():
         img_name = row['Filename']
-        rid = row['RID_x'] # 
+        rid = row['RID'] # 
         image_vocab = row['Image_Tag']
 
         if img_name not in image_files:
