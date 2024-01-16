@@ -12,7 +12,7 @@ IMG_SIZE = (300, 300)
 
 preprocess_input = tf.keras.applications.vgg19.preprocess_input
 
-def save_svg(output_directory, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name):
+def save_svg(output_directory, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name):
     # Set the viewBox to the size of the raw image
     view_box = f"0 0 {raw_image_size['width']} {raw_image_size['height']}"
     # SVG canvas size should match the raw image size
@@ -28,7 +28,7 @@ def save_svg(output_directory, annotation_tag_rid, rid, raw_image_size, bbox, an
     </svg>
     '''
 
-    svg_file_path = os.path.join(output_directory, f"{annotation_tag_rid}_{rid}.svg")
+    svg_file_path = os.path.join(output_directory, f"{process_rid}/{annotation_tag_rid}_{rid}.svg")
     os.makedirs(os.path.dirname(svg_file_path), exist_ok=True)
     with open(svg_file_path, "w") as file:
         file.write(svg_content)
@@ -209,7 +209,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                             "height": raw_bottom1 - raw_top1
                         }
 
-                        save_svg(output_path, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name)
+                        save_svg(output_path, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name)
                         
 
 
