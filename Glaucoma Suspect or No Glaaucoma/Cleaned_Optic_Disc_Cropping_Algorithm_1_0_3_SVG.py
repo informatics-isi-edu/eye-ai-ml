@@ -12,24 +12,28 @@ IMG_SIZE = (300, 300)
 
 preprocess_input = tf.keras.applications.vgg19.preprocess_input
 
-def save_svg(output_directory, process_rid, annotation_tag_rid, img_name, bbox, annotation_tag_name):
-    view_box = f"{bbox['left']} {bbox['top']} {bbox['width']} {bbox['height']}"
-    scale_x = scale_y = 1
+def save_svg(output_directory, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name):
+    # Set the viewBox to the size of the raw image
+    view_box = f"0 0 {raw_image_size['width']} {raw_image_size['height']}"
+    # SVG canvas size should match the raw image size
+    svg_width = raw_image_size['width']
+    svg_height = raw_image_size['height']
     group_id = f"eye-ai:{annotation_tag_rid},{annotation_tag_name}"
     rect_stroke_color = "#ff0000"
 
-    svg_content = f'''<svg viewBox="{view_box}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-      <scale x="{scale_x}" y="{scale_y}"/>
+    svg_content = f'''<svg width="{svg_width}px" height="{svg_height}px" viewBox="{view_box}" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
       <g id="{group_id}">
-        <rect fill="None" x="{bbox['left']}" y="{bbox['top']}" width="{bbox['width']}" height="{bbox['height']}" stroke="{rect_stroke_color}"/>
+        <rect fill="none" x="{bbox['left']}" y="{bbox['top']}" width="{bbox['width']}" height="{bbox['height']}" stroke="{rect_stroke_color}" stroke-width="2"/>
       </g>
     </svg>
     '''
 
-    svg_file_path = os.path.join(output_directory, "Cropped", process_rid, f"{annotation_tag_rid}_{img_name}.svg")
+    svg_file_path = os.path.join(output_directory, f"{annotation_tag_rid}_{rid}.svg")
     os.makedirs(os.path.dirname(svg_file_path), exist_ok=True)
     with open(svg_file_path, "w") as file:
         file.write(svg_content)
+
+
 
 def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model, process_rid, annotation_tag_rid, annotation_tag_name):
     # Template creation
@@ -131,6 +135,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
         img = getImage(directory_path, img_name)
         if img is None:
             continue
+        raw_image_size = {"width": img.shape[1], "height": img.shape[0]}
         resize_functions = [imgResize_primary, imgResize_secondary]  # Put resizing functions in a list
         for crop_size in range(95, 116, 10):
             for resize_function in resize_functions:  # Iterate over resizing functions
@@ -204,7 +209,9 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                             "height": raw_bottom1 - raw_top1
                         }
 
-                        save_svg(output_path, process_rid, annotation_tag_rid, rid, bbox, annotation_tag_name)
+                        save_svg(output_path, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name)
+                        
+
 
                         print(f"SVG for {rid} saved.")
 
