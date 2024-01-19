@@ -98,15 +98,23 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
         cropped_im = im[y:y+h, x:x+w]
         return cropped_im
     
-    def crop_to_eye_with_scaling_to_raw_image(im):
+    # def crop_to_eye_with_scaling_to_raw_image(im):
+    #     mask = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+    #     _, mask = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
+    #     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    #     max_contour = max(contours, key=cv2.contourArea)
+    #     x,y,w,h = cv2.boundingRect(max_contour)
+    #     cropped_im = im[y:y+h, x:x+w]
+    #     return cropped_im, x, y  # Return the cropped image and the top-left corner coordinates
+
+    # Function to find the bounding box of the eye on the original image
+    def find_eye_bbox(im):
         mask = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
         _, mask = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         max_contour = max(contours, key=cv2.contourArea)
-        x,y,w,h = cv2.boundingRect(max_contour)
-        cropped_im = im[y:y+h, x:x+w]
-        return cropped_im, x, y  # Return the cropped image and the top-left corner coordinates
-
+        x, y, w, h = cv2.boundingRect(max_contour)
+        return x, y, w, h
 
     if not os.path.exists(output_path):
         os.makedirs(output_path)
@@ -139,8 +147,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
         resize_functions = [imgResize_primary, imgResize_secondary]  # Put resizing functions in a list
         for crop_size in range(95, 116, 10):
             for resize_function in resize_functions:  # Iterate over resizing functions
-                # img = crop_to_eye(img)  # First, crop to eye
-                img, raw_crop_x, raw_crop_y = crop_to_eye_with_scaling_to_raw_image(img)  # First, crop to eye
+                img = crop_to_eye(img)  # First, crop to eye
                 img_rs = resize_function(img)
                 original_scale = img.shape[0] / img_rs.shape[0]  # Calculate the scale of the original image
                 for trial, color_channel in enumerate(["grey", "green", "red", "blue"], 1):
@@ -187,32 +194,35 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                     cropped_img1 = img[top1:bottom1, left1:right1]
                     resized_img1 = imgResizeToFixedSize(cropped_img1)
 
-                    raw_top1 = int((top * original_scale) + raw_crop_y)
-                    raw_bottom1 = int((bottom * original_scale) + raw_crop_y)
-                    raw_left1 = int((left * original_scale) + raw_crop_x)
-                    raw_right1 = int((right * original_scale) + raw_crop_x)
-
-
                     prediction = predict_optic_disc_center(resized_img1, model)  # Replace with your function
                     if prediction == "Proper":
 
+                        # Get the bounding box of the eye on the original image before resizing
+                        original_image = getImage(directory_path, img_name)
+                        x, y, w, h = find_eye_bbox(original_image)
+
+                        # Calculate the original bounding box coordinates based on the scale
+                        original_left = x + int(left * original_scale)
+                        original_top = y + int(top * original_scale)
+                        original_right = x + int(right * original_scale)
+                        original_bottom = y + int(bottom * original_scale)
+                        original_width = original_right - original_left
+                        original_height = original_bottom - original_top
+                    
                         img_path1 = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}' 
                         if not cv.imwrite(img_path1, cropped_img1):
                             print(f"Error: Image could not be saved at: {img_path1}")
 
-                        # Save the SVG file
-                        
+                        # Save the SVG file   
                         bbox = {
-                            "left": raw_left1,
-                            "top": raw_top1,
-                            "width": raw_right1 - raw_left1,
-                            "height": raw_bottom1 - raw_top1
+                            "left": original_left,
+                            "top": original_top,
+                            "width": original_width,
+                            "height": original_height
                         }
 
                         save_svg(output_path, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name)
                         
-
-
                         print(f"SVG for {rid} saved.")
 
                         print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path1}.")
@@ -224,10 +234,15 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                                     "Worked Color Channel": color_channel,
                                     "Cumulative Trials": trial,
                                     "Worked Crop Size": crop_size,
-                                                     "Bounding Box Top": raw_top1,
-                                                     "Bounding Box Bottom": raw_bottom1,
-                                                     "Bounding Box Left": raw_left1,
-                                                 "Bounding Box Right": raw_right1,
+                                                     "Cropped to Eye Bounding Box Top": top1,
+                                                     "Cropped to Eye Bounding Box Bottom": bottom1,
+                                                     "Cropped to Eye Bounding Box Left": left1,
+                                                     "Cropped to Eye Bounding Box Right": right1,
+                                                     "Original Bounding Box Top": original_top,
+                                                     "Original Bounding Box Bottom": original_bottom,
+                                                     "Original Bounding Box Left": original_left,
+                                                     "Original Bounding Box Right": original_right,
+                                                     
                                     "Worked Image Cropping Function": resize_function.__name__})
 
                         break
