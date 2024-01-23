@@ -12,7 +12,7 @@ IMG_SIZE = (300, 300)
 
 preprocess_input = tf.keras.applications.vgg19.preprocess_input
 
-def save_svg(output_directory, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name):
+def save_svg(output_directory, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name, resize_function_name):
     # Set the viewBox to the size of the raw image
     view_box = f"0 0 {raw_image_size['width']} {raw_image_size['height']}"
     # SVG canvas size should match the raw image size
@@ -28,7 +28,7 @@ def save_svg(output_directory, process_rid, annotation_tag_rid, rid, raw_image_s
     </svg>
     '''
 
-    svg_file_path = os.path.join(output_directory, f"{process_rid}/{annotation_tag_rid}_{rid}.svg")
+    svg_file_path = os.path.join(output_directory, f"{process_rid}/{annotation_tag_rid}_{rid}_{resize_function_name}.svg")
     os.makedirs(os.path.dirname(svg_file_path), exist_ok=True)
     with open(svg_file_path, "w") as file:
         file.write(svg_content)
@@ -221,7 +221,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                             "height": original_height
                         }
 
-                        save_svg(output_path, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name)
+                        save_svg(output_path, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name, resize_function.__name__)
                         
                         print(f"SVG for {rid} saved.")
 
@@ -230,6 +230,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
 
                         # Append the information to the results data list
                         results_data.append({"Image Name": img_name,
+                                             'Image RID': rid,
                                             "Saved Image Name": f'{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}',
                                     "Worked Color Channel": color_channel,
                                     "Cumulative Trials": trial,
@@ -259,6 +260,12 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
             
             img_rs = crop_to_eye(img)
 
+
+            # Get the bounding box of the eye on the original image before resizing
+            original_image = getImage(directory_path, img_name)
+            bbox_x, bbox_y, bbox_w, bbox_h = find_eye_bbox(original_image)
+
+
             # Define the image paths
             raw_img_path = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}' #f'{dir_path}{"Cropped_High_Res"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
     
@@ -266,11 +273,29 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                 print(f"Error: Raw image could not be saved at: {raw_img_path}")
             print(f"Raw Image {img_name} saved  at {raw_img_path}.")
 
+                        # Save the SVG file for the raw cropped image
+            bbox = {
+                "left": bbox_x,
+                "top": bbox_y,
+                "width": bbox_w,
+                "height": bbox_h
+            }
+
+            save_svg(output_path, process_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name, "Raw_Cropped_to_Eye")
+            print(f"SVG for {rid} saved.")
+
                     # Append the information to the DataFrame
             results_data.append({"Image Name": img_name,
+                                                'Image RID': rid,
                                  "Saved Image Name": f'{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}',
+                                    "Cropped to Eye left": bbox_x,
+                                    "Cropped to Eye top": bbox_y,
+                                    "Cropped to Eye width": bbox_w,
+                                    "Cropped to Eye height": bbox_h,
+                                    "Cropped to Eye right" : bbox_x + bbox_w,
+                                    "Cropped to Eye bottom" : bbox_y + bbox_h,
                                             "Worked Color Channel": "None",
-                                            "Worked Image Cropping Function": "Raw Cropped to Eye"},)
+                                            "Worked Image Cropping Function": "Raw Cropped to Eye",},)
 
         crop_success = False  # Reset the flag for the next image
 
@@ -335,5 +360,5 @@ preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, ou
 
 
 '''
-python Cleaned_Optic_Disc_Cropping_Algorithm_1_0_3_1.py --bag_path "Input/" --csv_path "Input.csv" --template_path "template.jpg" --output_directory "Output/" --model_path "/Users/sreenidhi/Downloads/USC/HSC Research/EYE AI/Glaucoma or Not Glaucoma/Merged Cropped Porper or Not Dataset TLBR 95 VGG19 Val Accuracy.hdf5" --output_csv_path "Output.csv" --process_rid "PROCESS_RID" --annotation_tag_rid "ANNOTATION_TAG_RID" --annotation_tag_name "ANNOTATION_TAG_NAME"
+python Cleaned_Optic_Disc_Cropping_Algorithm_1_0_3_SVG.py --bag_path "Input/" --csv_path "Input.csv" --template_path "template.jpg" --output_directory "Output/" --model_path "/Users/sreenidhi/Downloads/USC/HSC Research/EYE AI/Glaucoma or Not Glaucoma/Merged Cropped Porper or Not Dataset TLBR 95 VGG19 Val Accuracy.hdf5" --output_csv_path "Output.csv" --process_rid "PROCESS_RID" --annotation_tag_rid "ANNOTATION_TAG_RID" --annotation_tag_name "ANNOTATION_TAG_NAME"
 '''
