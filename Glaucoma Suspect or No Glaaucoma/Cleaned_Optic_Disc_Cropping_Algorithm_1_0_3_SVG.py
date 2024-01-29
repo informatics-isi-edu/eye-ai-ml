@@ -1,12 +1,15 @@
 # # cleaned 1.0.3 with bounding box output as well
 
 import os
+import sys
+import argparse
 import cv2 as cv
 import cv2
 import numpy as np
 import pandas as pd
 import time
 import tensorflow as tf
+from Crop_Detector_1_0_0 import load_model
 
 IMG_SIZE = (300, 300)
 
@@ -35,7 +38,8 @@ def save_svg(output_directory, process_rid, annotation_tag_rid, rid, raw_image_s
 
 
 
-def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model, process_rid, annotation_tag_rid, annotation_tag_name):
+def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model_path, process_rid, annotation_tag_rid, annotation_tag_name):
+    model = load_model(model_path)
     # Template creation
     template = np.ones((50, 50), dtype="uint8") * 0
     template = cv.circle(template, (25, 25), 24, 255, -1)
@@ -321,43 +325,32 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
     print("--- %s seconds ---" % (time.time() - start_time))
 
 
-import argparse
+if __name__ == '__main__':
+    # create the parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--bag_path', type=str, required=True, help='Path to the bag')
+    parser.add_argument('--csv_path', type=str, required=True, help='Path to the CSV')
+    parser.add_argument('--template_path', type=str, required=False, help='Path to the template')
+    parser.add_argument('--output_csv_path', type=str, required=True, help='Path to the output CSV')
+    parser.add_argument('--output_directory', type=str, required=True, help='Path to the output directory')
+    parser.add_argument('--model_path', type=str, required=False, help='Path to the model')
+    parser.add_argument('--process_rid', type=str, required=True, help='Process RID')
+    parser.add_argument('--annotation_tag_rid', type=str, required=True, help='Annotation Tag RID')
+    parser.add_argument('--annotation_tag_name', type=str, required=True, help='Annotation Tag Name')
 
-# create the parser
-parser = argparse.ArgumentParser()
-parser.add_argument('--bag_path', type=str, required=True, help='Path to the bag')
-parser.add_argument('--csv_path', type=str, required=True, help='Path to the CSV')
-parser.add_argument('--template_path', type=str, required=False, help='Path to the template')
-parser.add_argument('--output_csv_path', type=str, required=True, help='Path to the output CSV')
-parser.add_argument('--output_directory', type=str, required=True, help='Path to the output directory')
-parser.add_argument('--model_path', type=str, required=False, help='Path to the model')
-parser.add_argument('--process_rid', type=str, required=True, help='Process RID')
-parser.add_argument('--annotation_tag_rid', type=str, required=True, help='Annotation Tag RID')
-parser.add_argument('--annotation_tag_name', type=str, required=True, help='Annotation Tag Name')
+    # parse the arguments
+    args = parser.parse_args()
 
-# parse the arguments
-args = parser.parse_args()
-
-# Define image and output directories
-directory_path = args.bag_path #os.path.join(args.bag_path)#, 'data/assets/Image/') # args.bag_path
-output_directory = args.output_directory # '/Users/sreenidhi/Downloads/test of. highrez_cropped/'
-
-# Your CSV loading here
-csv_path = args.csv_path #f'/Users/sreenidhi/Downloads/Book1.csv'
-
-# Template path
-template_path = args.template_path #'/Users/sreenidhi/Downloads/template.jpg'
-
-# Output CSV path
-output_csv_path =  args.output_csv_path #f'/Users/sreenidhi/Downloads/Field_2_Cropped_Results_DataFrame.csv'
-
-# model loading here
-from Crop_Detector_1_0_0 import load_model
-model = load_model(args.model_path)  
-
-# preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model)
-preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_directory, model, args.process_rid, args.annotation_tag_rid, args.annotation_tag_name)
-
+    sys.exit(preprocess_and_crop(
+        args.bag_path,
+        args.csv_path,
+        args.output_csv_path,
+        args.template_path,
+        args.output_directory,
+        args.model_path,
+        args.process_rid,
+        args.annotation_tag_rid,
+        args.annotation_tag_name))
 
 '''
 python Cleaned_Optic_Disc_Cropping_Algorithm_1_0_3_SVG.py --bag_path "Input/" --csv_path "Input.csv" --template_path "template.jpg" --output_directory "Output/" --model_path "/Users/sreenidhi/Downloads/USC/HSC Research/EYE AI/Glaucoma or Not Glaucoma/Merged Cropped Porper or Not Dataset TLBR 95 VGG19 Val Accuracy.hdf5" --output_csv_path "Output.csv" --process_rid "PROCESS_RID" --annotation_tag_rid "ANNOTATION_TAG_RID" --annotation_tag_name "ANNOTATION_TAG_NAME"
