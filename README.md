@@ -1,2 +1,2 @@
-# ISI_EYE_AI
-Code Repository for EYE_AI Research
+# eye-ai-ml
+Code Repository for EYE-AI Project Machine Learning modules.
