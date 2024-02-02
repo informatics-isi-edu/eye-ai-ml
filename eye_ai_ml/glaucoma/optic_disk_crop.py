@@ -17,7 +17,7 @@ IMG_SIZE = (300, 300)
 
 preprocess_input = tf.keras.applications.vgg19.preprocess_input
 
-SAVED_MODEL_NAME_acc_vgg19_300_auc = 'optic_disk_crop_training.hdf5'
+SAVED_MODEL_NAME_acc_vgg19_300_auc = 'optic_disk_crop_model.hdf5'
 
 
 def load_model(model_path):
