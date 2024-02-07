@@ -111,7 +111,7 @@ def save_svg(output_directory, execution_rid, annotation_tag_rid, rid, raw_image
 
 
 def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model_path, execution_rid,
-                        annotation_tag_rid, annotation_tag_name):
+                        annotation_tag_rid, annotation_tag_name, cropped_image):
     model = load_model(model_path)
     # Template creation
     template = np.ones((50, 50), dtype="uint8") * 0
@@ -286,10 +286,11 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                         original_bottom = y + int(bottom * original_scale)
                         original_width = original_right - original_left
                         original_height = original_bottom - original_top
-
-                        img_path1 = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
-                        if not cv.imwrite(img_path1, cropped_img1):
-                            print(f"Error: Image could not be saved at: {img_path1}")
+                        
+                        if cropped_image:
+                            img_path1 = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
+                            if not cv.imwrite(img_path1, cropped_img1):
+                                print(f"Error: Image could not be saved at: {img_path1}")
 
                         # Save the SVG file   
                         bbox = {
@@ -342,12 +343,13 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
             original_image = getImage(directory_path, img_name)
             bbox_x, bbox_y, bbox_w, bbox_h = find_eye_bbox(original_image)
 
-            # Define the image paths
-            raw_img_path = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'  # f'{dir_path}{"Cropped_High_Res"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
+            if cropped_image:
+                # Define the image paths
+                raw_img_path = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'  # f'{dir_path}{"Cropped_High_Res"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
 
-            if not cv.imwrite(raw_img_path, img_rs):
-                print(f"Error: Raw image could not be saved at: {raw_img_path}")
-            print(f"Raw Image {img_name} saved  at {raw_img_path}.")
+                if not cv.imwrite(raw_img_path, img_rs):
+                    print(f"Error: Raw image could not be saved at: {raw_img_path}")
+                print(f"Raw Image {img_name} saved  at {raw_img_path}.")
 
             # Save the SVG file for the raw cropped image
             bbox = {
@@ -407,6 +409,8 @@ if __name__ == '__main__':
     parser.add_argument('--execution_rid', type=str, required=True, help='Execution RID')
     parser.add_argument('--annotation_tag_rid', type=str, required=True, help='Annotation Tag RID')
     parser.add_argument('--annotation_tag_name', type=str, required=True, help='Annotation Tag Name')
+    parser.add_argument('--annotation_tag_name', type=str, required=True, help='Annotation Tag Name')
+    parser.add_argument('--cropped_image', type=bool, required=True, help='Out put cropped image')
 
     # parse the arguments
     args = parser.parse_args()
@@ -420,4 +424,5 @@ if __name__ == '__main__':
         args.model_path,
         args.execution_rid,
         args.annotation_tag_rid,
-        args.annotation_tag_name))
+        args.annotation_tag_name,
+        args.cropped_image))
