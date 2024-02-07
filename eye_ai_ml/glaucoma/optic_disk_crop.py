@@ -305,7 +305,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
 
                         print(f"SVG for {rid} saved.")
 
-                        print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path1}.")
+                        # print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path1}.")
                         crop_success = True  # Set the flag
 
                         # Append the information to the results data list
