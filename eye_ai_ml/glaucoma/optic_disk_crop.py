@@ -84,14 +84,13 @@ def load_model(model_path):
     return model
 
 
-def save_svg(output_directory, execution_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name,
-             resize_function_name):
+def save_svg(output_directory, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name):
     # Set the viewBox to the size of the raw image
     view_box = f"0 0 {raw_image_size['width']} {raw_image_size['height']}"
     # SVG canvas size should match the raw image size
     svg_width = raw_image_size['width']
     svg_height = raw_image_size['height']
-    group_id = f"eye-ai:{annotation_tag_rid},{annotation_tag_name}"
+    group_id = f"eye-ai:{annotation_type_rid},{annotation_type_name}"
     rect_stroke_color = "#ff0000"
 
     svg_content = f'''<svg width="{svg_width}px" height="{svg_height}px" viewBox="{view_box}" 
@@ -104,14 +103,14 @@ def save_svg(output_directory, execution_rid, annotation_tag_rid, rid, raw_image
     '''
 
     svg_file_path = os.path.join(output_directory,
-                                 f"{execution_rid}/{annotation_tag_rid}_{rid}_{resize_function_name}.svg")
+                                 f"Execution_Assets/Image_Annotation/Cropped_{rid}.svg")
     os.makedirs(os.path.dirname(svg_file_path), exist_ok=True)
     with open(svg_file_path, "w") as file:
         file.write(svg_content)
 
 
 def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model_path, execution_rid,
-                        annotation_tag_rid, annotation_tag_name, cropped_image):
+                        annotation_type_rid, annotation_type_name, cropped_image):
     model = load_model(model_path)
     # Template creation
     template = np.ones((50, 50), dtype="uint8") * 0
@@ -300,9 +299,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                             "height": original_height
                         }
 
-                        save_svg(output_path, execution_rid, annotation_tag_rid, rid, raw_image_size, bbox,
-                                 annotation_tag_name, resize_function.__name__)
-
+                        save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
                         print(f"SVG for {rid} saved.")
 
                         # print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path1}.")
@@ -359,8 +356,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                 "height": bbox_h
             }
 
-            save_svg(output_path, execution_rid, annotation_tag_rid, rid, raw_image_size, bbox, annotation_tag_name,
-                     "Raw_Cropped_to_Eye")
+            save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
             print(f"SVG for {rid} saved.")
 
             # Append the information to the DataFrame
@@ -408,8 +404,8 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str, required=False, help='Path to the model')
     parser.add_argument('--execution_rid', type=str, required=True, help='Execution RID')
     parser.add_argument('--annotation_tag_rid', type=str, required=True, help='Annotation Tag RID')
-    parser.add_argument('--annotation_tag_name', type=str, required=True, help='Annotation Tag Name')
-    parser.add_argument('--annotation_tag_name', type=str, required=True, help='Annotation Tag Name')
+    parser.add_argument('--annotation_type_name', type=str, required=True, help='Annotation Type Name')
+    parser.add_argument('--annotation_type_name', type=str, required=True, help='Annotation Type Name')
     parser.add_argument('--cropped_image', type=bool, required=True, help='Out put cropped image')
 
     # parse the arguments
@@ -423,6 +419,6 @@ if __name__ == '__main__':
         args.output_directory,
         args.model_path,
         args.execution_rid,
-        args.annotation_tag_rid,
-        args.annotation_tag_name,
+        args.annotation_type_rid,
+        args.annotation_type_name,
         args.cropped_image))
