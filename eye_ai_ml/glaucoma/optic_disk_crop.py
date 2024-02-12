@@ -84,7 +84,7 @@ def load_model(model_path):
     return model
 
 
-def save_svg(output_directory, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name):
+def save_svg(output_directory, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name):
     # Set the viewBox to the size of the raw image
     view_box = f"0 0 {raw_image_size['width']} {raw_image_size['height']}"
     # SVG canvas size should match the raw image size
@@ -109,7 +109,7 @@ def save_svg(output_directory, execution_rid, annotation_type_rid, rid, raw_imag
         file.write(svg_content)
 
 
-def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model_path, execution_rid,
+def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path, output_path, model_path,
                         annotation_type_rid, annotation_type_name, cropped_image):
     model = load_model(model_path)
     # Template creation
@@ -299,7 +299,8 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                             "height": original_height
                         }
 
-                        save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
+                        # save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
+                        save_svg(output_path, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
                         print(f"SVG for {rid} saved.")
 
                         # print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path1}.")
@@ -356,7 +357,8 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                 "height": bbox_h
             }
 
-            save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
+            # save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
+            save_svg(output_path, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
             print(f"SVG for {rid} saved.")
 
             # Append the information to the DataFrame
@@ -402,9 +404,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_csv_path', type=str, required=True, help='Path to the output CSV')
     parser.add_argument('--output_directory', type=str, required=True, help='Path to the output directory')
     parser.add_argument('--model_path', type=str, required=False, help='Path to the model')
-    parser.add_argument('--execution_rid', type=str, required=True, help='Execution RID')
-    parser.add_argument('--annotation_tag_rid', type=str, required=True, help='Annotation Tag RID')
-    parser.add_argument('--annotation_type_name', type=str, required=True, help='Annotation Type Name')
+    parser.add_argument('--annotation_type_rid', type=str, required=True, help='Annotation Tag RID')
     parser.add_argument('--annotation_type_name', type=str, required=True, help='Annotation Type Name')
     parser.add_argument('--cropped_image', type=bool, required=True, help='Out put cropped image')
 
@@ -418,7 +418,6 @@ if __name__ == '__main__':
         args.template_path,
         args.output_directory,
         args.model_path,
-        args.execution_rid,
         args.annotation_type_rid,
         args.annotation_type_name,
         args.cropped_image))
