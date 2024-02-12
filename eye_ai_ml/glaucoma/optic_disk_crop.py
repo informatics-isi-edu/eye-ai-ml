@@ -374,7 +374,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                                  "Cropped to Eye right": bbox_x + bbox_w,
                                  "Cropped to Eye bottom": bbox_y + bbox_h,
                                  "Worked Color Channel": "None",
-                                 "Worked Image Cropping Function": "Raw Cropped to Eye", }, )
+                                 "Worked Image Cropping Function": "Raw_Cropped_to_Eye", }, )
 
         crop_success = False  # Reset the flag for the next image
 
