@@ -12,6 +12,7 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import keras
 from keras.callbacks import Callback, EarlyStopping
+import logging
 
 IMG_SIZE = (300, 300)
 
@@ -19,6 +20,7 @@ preprocess_input = tf.keras.applications.vgg19.preprocess_input
 
 SAVED_MODEL_NAME_acc_vgg19_300_auc = 'optic_disk_crop_model.hdf5'
 
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def load_model(model_path):
 
@@ -117,7 +119,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
     template = cv.circle(template, (25, 25), 24, 255, -1)
 
     if not cv.imwrite(template_path, template):
-        print("Error: Template could not be saved.")
+        logging.error("Error: Template could not be saved.")
         exit()
 
     def imgResize_primary(img):
@@ -137,7 +139,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
         full_path = directory_path + img_name
         image = cv.imread(full_path, -1)
         if image is None:
-            print("Error: Image could not be read.")
+            logging.error("Error: Image could not be read.")
             return None
         return image
 
@@ -198,7 +200,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
     start_time = time.time()
 
     if not os.path.exists(directory_path):
-        print(f"Error: Directory {directory_path} does not exist.")
+        logging.error(f'Error: Directory {directory_path} does not exist.')
         exit()
 
     image_files = os.listdir(directory_path)  # List all files in the directory
@@ -213,7 +215,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
         image_vocab = row['Image_Tag']
 
         if img_name not in image_files:
-            print(f"Image {img_name} does not exist in directory.")
+            logging.error(f'Image {img_name} does not exist in directory.')
             continue
 
         img = getImage(directory_path, img_name)
@@ -227,8 +229,9 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                 img_rs = resize_function(img)
                 original_scale = img.shape[0] / img_rs.shape[0]  # Calculate the scale of the original image
                 for trial, color_channel in enumerate(["grey", "green", "red", "blue"], 1):
-                    print(
-                        f"Processing image {img_name} : , trial {trial}, color channel {color_channel}, resize function {resize_function.__name__}")
+                    logging.info(
+                        f"Processing image {img_name} : , trial {trial}, color channel {color_channel}, resize function {resize_function.__name__}"
+                    )
                     if color_channel == "grey":
                         img_k = kmeansclust(cv.cvtColor(img_rs, cv.COLOR_BGR2GRAY), 7)
                     else:
@@ -236,7 +239,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
 
                     temp = cv.imread(template_path, -1)
                     if temp is None:
-                        print("Error: Template could not be read.")
+                        logging.error("Template could not be read.")
                         continue
 
                     metd = cv.TM_CCOEFF_NORMED
@@ -289,7 +292,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                         if cropped_image:
                             img_path1 = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'
                             if not cv.imwrite(img_path1, cropped_img1):
-                                print(f"Error: Image could not be saved at: {img_path1}")
+                                logging.error(f"Error: Image could not be saved at: {img_path1}")
 
                         # Save the SVG file   
                         bbox = {
@@ -301,7 +304,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
 
                         # save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
                         save_svg(output_path, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
-                        print(f"SVG for {rid} saved.")
+                        logging.info(f"SVG for {rid} saved.")
 
                         # print(f"Image {img_name} ({color_channel}) cropped and saved at {img_path1}.")
                         crop_success = True  # Set the flag
@@ -347,8 +350,8 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
                 raw_img_path = f'{output_path}{"Cropped_High_Resolution"}_{rid}_{img_name.split(".")[0]}_{image_vocab}.{img_name.split(".")[1]}'  # f'{dir_path}{"Cropped_High_Res"}_{img_name.split(".")[0]}.{img_name.split(".")[1]}'
 
                 if not cv.imwrite(raw_img_path, img_rs):
-                    print(f"Error: Raw image could not be saved at: {raw_img_path}")
-                print(f"Raw Image {img_name} saved  at {raw_img_path}.")
+                    logging.error(f"Error: Raw image could not be saved at: {raw_img_path}")
+                logging.info(f"Raw Image {img_name} saved  at {raw_img_path}.")
 
             # Save the SVG file for the raw cropped image
             bbox = {
@@ -360,7 +363,7 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
 
             # save_svg(output_path, execution_rid, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
             save_svg(output_path, annotation_type_rid, rid, raw_image_size, bbox, annotation_type_name)
-            print(f"SVG for {rid} saved.")
+            logging.info(f"SVG for {rid} saved.")
 
             # Append the information to the DataFrame
             results_data.append({"Image Name": img_name,
@@ -389,12 +392,12 @@ def preprocess_and_crop(directory_path, csv_path, output_csv_path, template_path
     # output_csv_path = os.path.join(os.path.dirname(output_path), f"{os.path.basename(output_path)}_results.csv")
     results_df.to_csv(output_csv_path, index=False)
 
-    print(f"Number of images in CSV: {results_df.shape[0]}")
-    print(f"Number of images in directory: {len(image_files)}")
-    print(f"Number of images in output directory: {len(os.listdir(output_path))}")
-    print(f"Number of cropped images: {len(results_data)}")
+    logging.info(f"Number of images in CSV: {results_df.shape[0]}")
+    logging.info(f"Number of images in directory: {len(image_files)}")
+    logging.info(f"Number of images in output directory: {len(os.listdir(output_path))}")
+    logging.info(f"Number of cropped images: {len(results_data)}")
 
-    print("--- %s seconds ---" % (time.time() - start_time))
+    logging.info("--- %s seconds ---" % (time.time() - start_time))
 
 
 if __name__ == '__main__':
