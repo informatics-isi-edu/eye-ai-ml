@@ -96,7 +96,7 @@ def prediction(model_path, cropped_image_path, output_dir):
 
     # Write to CSV file
     output_dir.mkdir(parents=True, exist_ok=True)
-    with open(str(output_dir)+"predictions_results.csv", 'w', newline='') as file:
+    with open(str(output_dir)+"/predictions_results.csv", 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Filename', 'True Label', 'Prediction', 'Probability Score'])
 
@@ -105,7 +105,7 @@ def prediction(model_path, cropped_image_path, output_dir):
 
     logging.info("Data saved to predictions.csv")
 
-    return str(output_dir)+"predictions_results.csv"
+    return str(output_dir)+"/predictions_results.csv"
 
 
 if __name__ == '__main__':
