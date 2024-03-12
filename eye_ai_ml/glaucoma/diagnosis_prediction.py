@@ -19,8 +19,10 @@ def f1_score_normal(y_true, y_pred): #taken from old keras source code
     f1_val = 2*(precision*recall)/(precision+recall+K.epsilon())
     return f1_val
 
+
 def preprocess_input_vgg19(x):
     return tf.keras.applications.vgg19.preprocess_input(x)
+
 
 def prediction(model_path, cropped_image_path, output_dir):
     best_params = {
@@ -93,8 +95,8 @@ def prediction(model_path, cropped_image_path, output_dir):
         y_pred.extend(predictions)
 
     # Write to CSV file
-    pred_result_path = output_dir/ Path("predictions_results.csv")
-    with open('predictions_results.csv', 'w', newline='') as file:
+    pred_result_path = output_dir / Path("predictions_results.csv")
+    with open(pred_result_path, 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Filename', 'True Label', 'Prediction', 'Probability Score'])
 
