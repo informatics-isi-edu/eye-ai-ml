@@ -95,9 +95,8 @@ def prediction(model_path, cropped_image_path, output_dir):
         y_pred.extend(predictions)
 
     # Write to CSV file
-    pred_result_path = output_dir / Path("predictions_results.csv")
-    pred_result_path.mkdir(parents=True, exist_ok=True)
-    with open(pred_result_path, 'w', newline='') as file:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with open(str(output_dir)+"predictions_results.csv", 'w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['Filename', 'True Label', 'Prediction', 'Probability Score'])
 
@@ -106,7 +105,7 @@ def prediction(model_path, cropped_image_path, output_dir):
 
     logging.info("Data saved to predictions.csv")
 
-    return pred_result_path
+    return str(output_dir)+"predictions_results.csv"
 
 
 if __name__ == '__main__':
