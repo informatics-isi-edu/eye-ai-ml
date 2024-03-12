@@ -118,4 +118,4 @@ if __name__ == '__main__':
 
     sys.exit(prediction(args.model_path,
                         args.cropped_image_path,
-                        arg.output_dir))
+                        args.output_dir))
