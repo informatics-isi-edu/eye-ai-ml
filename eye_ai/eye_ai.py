@@ -205,17 +205,25 @@ class EyeAI(DerivaML):
 
         return result.to_dict(orient='records')
 
-    def insert_new_diagnosis(self, entities: List[dict[str, dict]],
+    def insert_new_diagnosis(self, pred_df: pd.DataFrame,
                              diagtag_rid: str,
                              execution_rid: str):
         """
         Batch insert new diagnosis entities into the Diagnosis table.
 
         Args:
-        - entities (List[dict[str, dict]]): List of diagnosis entities to be inserted.
-        - diagTag_RID (str): RID of the diagnosis tag associated with the new entities.
-        - process_rid (str): RID of the process associated with the new entities.
+        - pred_df (pd.DataFrame): A dataframe with column "Image" containing the image rid and "Prediction" containing 0/1.
+        - diagtag_rid (str): RID of the diagnosis tag associated with the new entities.
+        - execution_rid (str): RID of the execution which generated the diagnosis.
         """
+
+        glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "Suspected Glaucoma")
+        no_glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "No Glaucoma")
+
+        mapping = {0: no_glaucoma, 1: glaucoma}
+        pred_df['Diagnosis'] = pred_df['Prediction'].map(mapping)
+        pred_df = pred_df[['Image', 'Diagnosis']]
+        entities = pred_df.to_dict(orient='records')
         self._batch_insert(self.schema.Diagnosis,
                            [{'Execution': execution_rid, 'Diagnosis_Tag': diagtag_rid, **e} for e in entities])
     
