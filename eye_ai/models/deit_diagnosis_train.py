@@ -8,8 +8,10 @@ import csv
 import logging
 from pathlib import Path, PurePath
 
-def main(*, model_path, image_path, output_path):
+def train_model():
     pass
+def main(*, model_path, image_path, output_path):
+    train_model()
 
 if __name__ == '__main__':
     # create the parser
