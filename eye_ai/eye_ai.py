@@ -206,8 +206,8 @@ class EyeAI(DerivaML):
         return result.to_dict(orient='records')
 
     def insert_new_diagnosis(self, entities: List[dict[str, dict]],
-                             diagTag_rid: str,
-                             process_rid: str):
+                             diagtag_rid: str,
+                             execution_rid: str):
         """
         Batch insert new diagnosis entities into the Diagnosis table.
 
@@ -217,7 +217,7 @@ class EyeAI(DerivaML):
         - process_rid (str): RID of the process associated with the new entities.
         """
         self._batch_insert(self.schema.Diagnosis,
-                           [{'Process': process_rid, 'Diagnosis_Tag': diagTag_rid, **e} for e in entities])
+                           [{'Execution': execution_rid, 'Diagnosis_Tag': diagtag_rid, **e} for e in entities])
     
     def insert_image_annotation(self, upload_result: dict, metadata: pd.DataFrame):
         """
