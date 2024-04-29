@@ -224,8 +224,8 @@ class EyeAI(DerivaML):
         no_glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "No Glaucoma")
 
         mapping = {0: no_glaucoma, 1: glaucoma}
-        pred_df['Diagnosis'] = pred_df['Prediction'].map(mapping)
-        pred_df = pred_df[['Image', 'Diagnosis']]
+        pred_df['Diagnosis_Vocab'] = pred_df['Prediction'].map(mapping)
+        pred_df = pred_df[['Image', 'Diagnosis_Vocab']]
         entities = pred_df.to_dict(orient='records')
         self._batch_insert(self.schema.Diagnosis,
                            [{'Execution': execution_rid, 'Diagnosis_Tag': diagtag_rid, **e} for e in entities])
@@ -271,7 +271,7 @@ class EyeAI(DerivaML):
         Dataset_Path = PurePath(bag_path, 'data/Image.csv')
         Dataset = pd.read_csv(Dataset_Path)
         Dataset_Field_2 = Dataset[Dataset['Image_Angle_Vocab'] == "2SK6"]
-        angle2_csv_path = PurePath(bag_path, 'Field_2.csv')
+        angle2_csv_path = PurePath(self.working_dir, 'Field_2.csv')
         Dataset_Field_2.to_csv(angle2_csv_path, index=False)
         return angle2_csv_path
 
@@ -334,7 +334,7 @@ class EyeAI(DerivaML):
                 else:
                     cropped_image.save(f'{str(cropped_path_2SKA)}/Cropped_{image_rid}.JPG')
                 image_annot_df["Cropped Filename"] = 'Cropped_' + image_file_name
-        output_csv = bag_path + "/data/Cropped_Image.csv"
+        output_csv = PurePath(self.working_dir, 'Cropped_Image.csv')
         image_annot_df.to_csv(output_csv)
         return cropped_path, output_csv 
 
