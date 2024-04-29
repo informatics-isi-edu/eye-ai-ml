@@ -7,6 +7,8 @@ from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException
 from pathlib import Path, PurePath
 import matplotlib.pyplot as plt
 from sklearn.metrics import classification_report, roc_auc_score, roc_curve
+import sys
+
 
 class EyeAIException(DerivaMLException):
     def __init__(self, msg=""):
@@ -57,6 +59,7 @@ class EyeAI(DerivaML):
         """
 
         super().__init__(hostname, catalog_id, 'eye-ai', cache_dir, working_dir)
+        self.version = sys.modules[globals()["__package__"]].__version__
         self.schema = self.pb.schemas['eye-ai']
 
     @staticmethod

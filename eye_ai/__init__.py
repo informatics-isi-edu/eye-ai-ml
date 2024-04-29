@@ -5,5 +5,3 @@ try:
 except PackageNotFoundError:
     # package is not installed
     pass
-
-print(f"Init version{__version__}")
