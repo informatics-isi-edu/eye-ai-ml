@@ -19,9 +19,13 @@ dependencies = [
     "scikit-learn"
 ]
 
+[tool.setuptools.package-data]
+# include VERSION file to a package
+eye_ai = ["VERSION"]
+
 [tool.setuptools-git-versioning]
 enabled = true
-version_file = "VERSION"
+version_file = "eye_ai/VERSION"
 count_commits_from_version_file = true
 
 [metadata]
