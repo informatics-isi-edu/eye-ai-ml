@@ -5,18 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "eye-ai"
 authors = [
-    {name = "Your Name", email = "you@yourdomain.com"},
+    {name = "ISI ISRD", email = "isrd-dev@isi.edu"},
 ]
 description = "ML code for the EYE-AI project"
 dynamic = ["version"]
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
-  "deriva-ml",
+    "deriva-ml",
     "pandas",
     "pillow",
     "matplotlib",
-    "scikit-learn"
+    "scikit-learn",
+    "setuptools-git-versioning>=2.0,<3"
 ]
 
 [tool.setuptools.package-data]
