@@ -21,7 +21,7 @@ dependencies = [
 
 [tool.setuptools.package-data]
 # include VERSION file to a package
-eye_ai = ["VERSION"]
+eye_ai = ["eye_ai/VERSION"]
 
 [tool.setuptools-git-versioning]
 enabled = true
