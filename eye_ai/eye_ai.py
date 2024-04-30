@@ -1,7 +1,6 @@
 from typing import List, Callable
 import xml.etree.ElementTree as ET
 import pandas as pd
-from pathlib import Path
 from PIL import Image
 from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException
 from pathlib import Path, PurePath
@@ -49,7 +48,7 @@ class EyeAI(DerivaML):
     """
 
     def __init__(self, hostname: str = 'www.eye-ai.org', catalog_id: str = 'eye-ai',
-                 cache_dir: str='/data', working_dir: str = None):
+                 cache_dir: str = '/data', working_dir: str = './'):
         """
         Initializes the EyeAI object.
 
@@ -58,8 +57,10 @@ class EyeAI(DerivaML):
         - catalog_number (str): The catalog number or name.
         """
 
-        super().__init__(hostname, catalog_id, 'eye-ai', cache_dir, working_dir)
-        self.version = sys.modules[globals()["__package__"]].__version__
+        super().__init__(hostname, catalog_id, 'eye-ai',
+                         cache_dir,
+                         working_dir,
+                         sys.modules[globals()["__package__"]].__version__)
         self.schema = self.pb.schemas['eye-ai']
 
     @staticmethod
@@ -174,6 +175,7 @@ class EyeAI(DerivaML):
         wide = pd.pivot(long, index=['Image', 'Image_Side', 'Subject_RID'], columns='Full_Name',
                         values=compare_value)  # Reshape from long to wide
         return long, wide
+
     def compute_diagnosis(self,
                           df: pd.DataFrame,
                           diag_func: Callable,
@@ -224,8 +226,8 @@ class EyeAI(DerivaML):
         no_glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "No Glaucoma")
 
         mapping = {0: no_glaucoma, 1: glaucoma}
-        pred_df['Diagnosis'] = pred_df['Prediction'].map(mapping)
-        pred_df = pred_df[['Image', 'Diagnosis']]
+        pred_df['Diagnosis_Vocab'] = pred_df['Prediction'].map(mapping)
+        pred_df = pred_df[['Image', 'Diagnosis_Vocab']]
         entities = pred_df.to_dict(orient='records')
         self._batch_insert(self.schema.Diagnosis,
                            [{'Execution': execution_rid, 'Diagnosis_Tag': diagtag_rid, **e} for e in entities])
@@ -253,9 +255,9 @@ class EyeAI(DerivaML):
                     annot_func_rid = self.lookup_term(table_name="Annotation_Function", term_name=annot_func)
                     annot_type_rid = self.lookup_term(table_name="Annotation_Type", term_name="Optic Nerve")
                     image_annot_entities.append({'Annotation_Function': annot_func_rid,
-                                                 'Annotation_Type':annot_type_rid,
+                                                 'Annotation_Type': annot_type_rid,
                                                  'Image': image_rid,
-                                                 'Execution_Assets':rid})
+                                                 'Execution_Assets': rid})
         self._batch_insert(self.schema.Image_Annotation, image_annot_entities)
 
     def filter_angle_2(self, bag_path: str) -> PurePath:
@@ -271,7 +273,7 @@ class EyeAI(DerivaML):
         Dataset_Path = PurePath(bag_path, 'data/Image.csv')
         Dataset = pd.read_csv(Dataset_Path)
         Dataset_Field_2 = Dataset[Dataset['Image_Angle_Vocab'] == "2SK6"]
-        angle2_csv_path = PurePath(bag_path, 'Field_2.csv')
+        angle2_csv_path = PurePath(self.working_dir, 'Field_2.csv')
         Dataset_Field_2.to_csv(angle2_csv_path, index=False)
         return angle2_csv_path
 
@@ -334,7 +336,7 @@ class EyeAI(DerivaML):
                 else:
                     cropped_image.save(f'{str(cropped_path_2SKA)}/Cropped_{image_rid}.JPG')
                 image_annot_df["Cropped Filename"] = 'Cropped_' + image_file_name
-        output_csv = bag_path + "/data/Cropped_Image.csv"
+        output_csv = PurePath(self.working_dir, 'Cropped_Image.csv')
         image_annot_df.to_csv(output_csv)
         return cropped_path, output_csv 
 
