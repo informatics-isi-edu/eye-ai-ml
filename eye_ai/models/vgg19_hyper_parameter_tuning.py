@@ -1,5 +1,8 @@
 import argparse
 
+from functools import partial
+import json
+
 import numpy as np
 import optuna
 import keras
@@ -346,8 +349,6 @@ def objective(trial, train_path, valid_path, graded_test_path):
 def print_best_callback(study, trial):
     print(f"Best value: {study.best_value}, Best params: {study.best_trial.params}")
 
-from functools import partial
-
 def main(train_path, valid_path, graded_test_path, output_path, n_trials):
     os.makedirs(output_path, exist_ok=True)
   
@@ -358,20 +359,24 @@ def main(train_path, valid_path, graded_test_path, output_path, n_trials):
         study_name='vgg19_catalog_Optimization_F1_Score_Score'
     )
   
-    # study.optimize(objective, n_trials=n_trials, callbacks=[print_best_callback])
-
-    # Inside your main function or wherever you set up the Optuna study
+    # Partial function setup to pass additional arguments to the objective function
     objective_with_paths = partial(objective, train_path=train_path, valid_path=valid_path, graded_test_path=graded_test_path)
     
-    # Now pass this new function to Optuna's optimize method
+    # Optimization
     study.optimize(objective_with_paths, n_trials=n_trials, callbacks=[print_best_callback])
   
+    # Save the study and the best trial parameters as JSON
     joblib.dump(study, os.path.join(output_path, 'vgg19_hyperparameter_study.pkl'))
 
+    best_params = study.best_trial.params
+    best_params_path = os.path.join(output_path, 'best_hyperparameters.json')
+    with open(best_params_path, 'w') as f:
+        json.dump(best_params, f, indent=4)
+    
     print(f"Best trial :")
     print(" Value: ", study.best_trial.value)
     print(" Params: ")
-    for key, value in study.best_trial.params.items():
+    for key, value in best_params.items():
         print(f"    {key}: {value}")
 
 if __name__ == '__main__':
@@ -383,40 +388,4 @@ if __name__ == '__main__':
     parser.add_argument('--n_trials', type=int, default=3)
     args = parser.parse_args()
     main(args.train_path, args.valid_path, args.graded_test_path, args.output_path, args.n_trials)
-
-
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--train_path', type=str, required=True, help='Path to the training images')
-# parser.add_argument('--valid_path', type=str, required=True, help='Path to the validation images')
-# parser.add_argument('--graded_test_path', type=str, required=True, help='Path to the graded test images')
-# parser.add_argument('--output_path', type=str, required=True, help='Path where the hyperparameters JSON file and tuning history should be saved')
-# args = parser.parse_args()
-
-# if __name__ == '__main__':
-#   # Ensure the output directory exists
-#   os.makedirs(args.output_path, exist_ok=True)
-  
-#   # Study setup
-#   # Create Optuna study
-#   study = optuna.create_study(
-#       direction="maximize",
-#       sampler=TPESampler(seed=42),
-#       pruner=MedianPruner(),
-#       study_name='vgg19_catalog_Optimization_F1_Score_Score',  # add study name
-#   )
-  
-#   # Run the study 30
-#   study.optimize(objective, n_trials=3, callbacks=[print_best_callback]) # 30
-  
-#   # Save the study
-#   joblib.dump(study, os.path.join(args.output_path, 'vgg19_hyperparameter_study.pkl'))
-  
-#   print(f"Best trial :")
-#   print(" Value: ", study.best_trial.value)
-#   print(" Params: ")
-#   for key, value in study.best_trial.params.items():
-#       print(f"    {key}: {value}")
-
-
-
 
