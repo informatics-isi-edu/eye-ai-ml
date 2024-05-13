@@ -124,7 +124,7 @@ def objective(trial, train_path, valid_path, graded_test_path):
 
     train_generator = train_datagen.flow_from_directory(
         train_path,
-        target_size=(300, 300),
+        target_size=(224, 224),
         class_mode = 'binary',
         classes = classes
         # class_mode='binary'
@@ -132,7 +132,7 @@ def objective(trial, train_path, valid_path, graded_test_path):
 
     validation_generator = val_datagen.flow_from_directory(
         valid_path,
-        target_size=(300, 300),
+        target_size=(224, 224),
         class_mode = 'binary',
         classes = classes
         # class_mode='binary'
@@ -140,7 +140,7 @@ def objective(trial, train_path, valid_path, graded_test_path):
 
     # test_generator = test_datagen.flow_from_directory(
     #     '/content/Test_2-277C_Field_2_Cropped_to_Optic_Disc_Test_Ready_without_2_277M_without_no_optic_disc_images/',
-    #     target_size=(300, 300),
+    #     target_size=(224, 224),
     #     class_mode = 'binary',
     #     classes = classes
 
@@ -149,7 +149,7 @@ def objective(trial, train_path, valid_path, graded_test_path):
 
     graded_test_generator = graded_test_datagen.flow_from_directory(
         graded_test_path,
-        target_size=(300, 300),
+        target_size=(224, 224),
         class_mode = 'binary',
         classes = classes
 
@@ -171,11 +171,11 @@ def objective(trial, train_path, valid_path, graded_test_path):
 
     # Load pre-trained VGG16
     K.clear_session()  # Clear session to avoid memory issue
-    base_model = VGG19(weights='imagenet', include_top=False, input_shape=(300, 300, 3))
+    base_model = VGG19(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
     base_model.trainable = False  # Freeze the base_model
 
     # Define new model
-    inputs = keras.Input(shape=(300, 300, 3))
+    inputs = keras.Input(shape=(224, 224, 3))
     x = base_model(inputs, training=False)  # We need to set training=True for the base_model to take into account the unfreezing
 
     # Choose between Flatten and GlobalAveragePooling2D
