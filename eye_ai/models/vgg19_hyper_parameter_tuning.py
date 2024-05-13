@@ -87,7 +87,7 @@ def preprocess_input_vgg19(x):
     return tf.keras.applications.vgg19.preprocess_input(x)
   
 # Define objective function for Optuna study
-def objective(trial):
+def objective(trial, train_path, valid_path, graded_test_path):
     # Define data augmentations to be tuned
 
     # Suggest values for the hyperparameters
@@ -346,6 +346,7 @@ def objective(trial):
 def print_best_callback(study, trial):
     print(f"Best value: {study.best_value}, Best params: {study.best_trial.params}")
 
+from functools import partial
 
 def main(train_path, valid_path, graded_test_path, output_path, n_trials):
     os.makedirs(output_path, exist_ok=True)
@@ -357,7 +358,13 @@ def main(train_path, valid_path, graded_test_path, output_path, n_trials):
         study_name='vgg19_catalog_Optimization_F1_Score_Score'
     )
   
-    study.optimize(objective, n_trials=n_trials, callbacks=[print_best_callback])
+    # study.optimize(objective, n_trials=n_trials, callbacks=[print_best_callback])
+
+    # Inside your main function or wherever you set up the Optuna study
+    objective_with_paths = partial(objective, train_path=train_path, valid_path=valid_path, graded_test_path=graded_test_path)
+    
+    # Now pass this new function to Optuna's optimize method
+    study.optimize(objective_with_paths, n_trials=n_trials, callbacks=[print_best_callback])
   
     joblib.dump(study, os.path.join(output_path, 'vgg19_hyperparameter_study.pkl'))
 
