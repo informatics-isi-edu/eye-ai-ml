@@ -368,8 +368,8 @@ if __name__ == '__main__':
       study_name='vgg19_catalog_Optimization_F1_Score_Score',  # add study name
   )
   
-  # Run the study
-  study.optimize(objective, n_trials=30, callbacks=[print_best_callback]) # 30
+  # Run the study 30
+  study.optimize(objective, n_trials=3, callbacks=[print_best_callback]) # 30
   
   # Save the study
   joblib.dump(study, os.path.join(args.output_path, 'vgg19_hyperparameter_study.pkl'))
