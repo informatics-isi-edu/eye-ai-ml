@@ -120,7 +120,7 @@ def objective(trial):
     classes = {'2SKC_No_Glaucoma': 0, '2SKA_Suspected_Glaucoma': 1}
 
     train_generator = train_datagen.flow_from_directory(
-        args.train_path,
+        train_path,
         target_size=(300, 300),
         class_mode = 'binary',
         classes = classes
@@ -128,7 +128,7 @@ def objective(trial):
     )
 
     validation_generator = val_datagen.flow_from_directory(
-        args.valid_path,
+        valid_path,
         target_size=(300, 300),
         class_mode = 'binary',
         classes = classes
@@ -145,7 +145,7 @@ def objective(trial):
     # )
 
     graded_test_generator = graded_test_datagen.flow_from_directory(
-        args.graded_test_path,
+        graded_test_path,
         target_size=(300, 300),
         class_mode = 'binary',
         classes = classes
@@ -347,8 +347,8 @@ def print_best_callback(study, trial):
     print(f"Best value: {study.best_value}, Best params: {study.best_trial.params}")
 
 
-def main(args):
-    os.makedirs(args.output_path, exist_ok=True)
+def main(train_path, valid_path, graded_test_path, output_path, n_trials):
+    os.makedirs(output_path, exist_ok=True)
   
     study = optuna.create_study(
         direction="maximize",
@@ -357,9 +357,9 @@ def main(args):
         study_name='vgg19_catalog_Optimization_F1_Score_Score'
     )
   
-    study.optimize(objective, n_trials=args.n_trials, callbacks=[print_best_callback])
+    study.optimize(objective, n_trials=n_trials, callbacks=[print_best_callback])
   
-    joblib.dump(study, os.path.join(args.output_path, 'vgg19_hyperparameter_study.pkl'))
+    joblib.dump(study, os.path.join(output_path, 'vgg19_hyperparameter_study.pkl'))
 
     print(f"Best trial :")
     print(" Value: ", study.best_trial.value)
@@ -375,7 +375,7 @@ if __name__ == '__main__':
     parser.add_argument('--output_path', type=str, required=True)
     parser.add_argument('--n_trials', type=int, default=3)
     args = parser.parse_args()
-    main(args)
+    main(args.train_path, args.valid_path, args.graded_test_path, args.output_path, args.n_trials)
 
 
 # parser = argparse.ArgumentParser()
