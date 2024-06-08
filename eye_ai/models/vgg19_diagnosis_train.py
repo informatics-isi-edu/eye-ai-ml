@@ -7,6 +7,7 @@ import os
 import gc
 from pathlib import Path, PurePath
 import logging
+import json
 
 import pandas as pd
 from sklearn.utils import class_weight
@@ -186,39 +187,58 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
     
     logging.info("VGG19_Catalog_LAC_DHS_Cropped_Data_Trained_model.h5 Model trained, Model and training history are saved successfully.")
 
-def main(train_path, valid_path, test_path, output_path):
+# def main(train_path, valid_path, test_path, output_path):
+#     logging.basicConfig(level=logging.INFO)
+    
+#     # Use best parameters from Optuna
+#     best_params = {
+#         'rotation_range': -5,
+#         'width_shift_range': 0.04972485058923855,
+#         'height_shift_range': 0.03008783098167697,
+#         'horizontal_flip': True,
+#         'vertical_flip': True,
+#         'zoom_range': -0.044852124875001065,
+#         'brightness_range': -0.02213535357633886,
+#         'use_class_weights': True,
+#         'pooling': 'global_average',
+#         'dense_layers': 3,
+#         'units_layer_0': 64,
+#         'activation_func_0': 'sigmoid',
+#         'batch_norm_0': True,
+#         'dropout_0': 0.09325925519992712,
+#         'units_layer_1': 64,
+#         'activation_func_1': 'tanh',
+#         'batch_norm_1': True,
+#         'dropout_1': 0.17053317552512925,
+#         'units_layer_2': 32,
+#         'activation_func_2': 'relu',
+#         'batch_norm_2': False,
+#         'dropout_2': 0.31655072863663397,
+#         'fine_tune_at': 7,
+#         'fine_tuning_learning_rate_adam': 1.115908855034341e-05,
+#         'batch_size': 32
+#     }
+
+#     train_and_evaluate(train_path, valid_path, test_path, output_path, best_params)
+
+def main(train_path, valid_path, test_path, output_path, best_hyperparameters_json_path):
     logging.basicConfig(level=logging.INFO)
     
-    # Use best parameters from Optuna
-    best_params = {
-        'rotation_range': -5,
-        'width_shift_range': 0.04972485058923855,
-        'height_shift_range': 0.03008783098167697,
-        'horizontal_flip': True,
-        'vertical_flip': True,
-        'zoom_range': -0.044852124875001065,
-        'brightness_range': -0.02213535357633886,
-        'use_class_weights': True,
-        'pooling': 'global_average',
-        'dense_layers': 3,
-        'units_layer_0': 64,
-        'activation_func_0': 'sigmoid',
-        'batch_norm_0': True,
-        'dropout_0': 0.09325925519992712,
-        'units_layer_1': 64,
-        'activation_func_1': 'tanh',
-        'batch_norm_1': True,
-        'dropout_1': 0.17053317552512925,
-        'units_layer_2': 32,
-        'activation_func_2': 'relu',
-        'batch_norm_2': False,
-        'dropout_2': 0.31655072863663397,
-        'fine_tune_at': 7,
-        'fine_tuning_learning_rate_adam': 1.115908855034341e-05,
-        'batch_size': 32
-    }
+    # Load best parameters from JSON
+    with open(best_hyperparameters_json_path, 'r') as file:
+        best_params = json.load(file)
 
     train_and_evaluate(train_path, valid_path, test_path, output_path, best_params)
+
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument('--train_path', type=str, required=True, help='Path to the training images')
+#     parser.add_argument('--valid_path', type=str, required=True, help='Path to the validation images')
+#     parser.add_argument('--test_path', type=str, required=True, help='Path to the test images')
+#     parser.add_argument('--output_path', type=str, required=True, help='Path where the trained model should be saved')
+#     args = parser.parse_args()
+    
+#     main(args.train_path, args.valid_path, args.test_path, args.output_path)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -226,6 +246,7 @@ if __name__ == '__main__':
     parser.add_argument('--valid_path', type=str, required=True, help='Path to the validation images')
     parser.add_argument('--test_path', type=str, required=True, help='Path to the test images')
     parser.add_argument('--output_path', type=str, required=True, help='Path where the trained model should be saved')
+    parser.add_argument('--best_hyperparameters_json_path', type=str, required=True, help='Path to the JSON file with best hyperparameters')
     args = parser.parse_args()
-    
-    main(args.train_path, args.valid_path, args.test_path, args.output_path)
+
+    main(args.train_path, args.valid_path, args.test_path, args.output_path, args.best_hyperparameters_json_path)
