@@ -7,6 +7,7 @@ from tensorflow.keras import backend as K
 import csv
 import logging
 from pathlib import Path, PurePath
+import json
 
 
 @keras.saving.register_keras_serializable()
@@ -24,34 +25,38 @@ def preprocess_input_vgg19(x):
     return tf.keras.applications.vgg19.preprocess_input(x)
 
 
-def prediction(model_path, cropped_image_path, output_dir):
-    best_params = {
-        'rotation_range': -5,
-        'width_shift_range': 0.04972485058923855,
-        'height_shift_range': 0.03008783098167697,
-        'horizontal_flip': True,
-        'vertical_flip': True,
-        'zoom_range': -0.044852124875001065,
-        'brightness_range': -0.02213535357633886,
-        'use_class_weights': True,
-        'pooling': 'global_average',
-        'dense_layers': 3,
-        'units_layer_0': 64,
-        'activation_func_0': 'sigmoid',
-        'batch_norm_0': True,
-        'dropout_0': 0.09325925519992712,
-        'units_layer_1': 64,
-        'activation_func_1': 'tanh',
-        'batch_norm_1': True,
-        'dropout_1': 0.17053317552512925,
-        'units_layer_2': 32,
-        'activation_func_2': 'relu',
-        'batch_norm_2': False,
-        'dropout_2': 0.31655072863663397,
-        'fine_tune_at': 7,
-        'fine_tuning_learning_rate_adam': 1.115908855034341e-05,
-        'batch_size': 32
-    }
+def prediction(model_path, cropped_image_path, output_dir, best_hyperparameters_json_path):
+    # best_params = {
+    #     'rotation_range': -5,
+    #     'width_shift_range': 0.04972485058923855,
+    #     'height_shift_range': 0.03008783098167697,
+    #     'horizontal_flip': True,
+    #     'vertical_flip': True,
+    #     'zoom_range': -0.044852124875001065,
+    #     'brightness_range': -0.02213535357633886,
+    #     'use_class_weights': True,
+    #     'pooling': 'global_average',
+    #     'dense_layers': 3,
+    #     'units_layer_0': 64,
+    #     'activation_func_0': 'sigmoid',
+    #     'batch_norm_0': True,
+    #     'dropout_0': 0.09325925519992712,
+    #     'units_layer_1': 64,
+    #     'activation_func_1': 'tanh',
+    #     'batch_norm_1': True,
+    #     'dropout_1': 0.17053317552512925,
+    #     'units_layer_2': 32,
+    #     'activation_func_2': 'relu',
+    #     'batch_norm_2': False,
+    #     'dropout_2': 0.31655072863663397,
+    #     'fine_tune_at': 7,
+    #     'fine_tuning_learning_rate_adam': 1.115908855034341e-05,
+    #     'batch_size': 32
+    # }
+        # Load best parameters from JSON
+    with open(best_hyperparameters_json_path, 'r') as file:
+        best_params = json.load(file)
+        
     graded_test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
 
     classes = {'2SKC_No_Glaucoma': 0, '2SKA_Suspected_Glaucoma': 1}
@@ -114,10 +119,12 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str, required=True, help='Path to the prediction model')
     parser.add_argument('--cropped_image_path', type=str, required=True, help='Path to the cropped images')
     parser.add_argument('--output_dir', type=str, required=False, help='Path to the output CSV')
+    parser.add_argument('--best_hyperparameters_json_path', type=str, required=True, help='Path to the JSON file with best hyperparameters')
 
     # parse the arguments
     args = parser.parse_args()
 
     sys.exit(prediction(args.model_path,
                         args.cropped_image_path,
-                        args.output_dir))
+                        args.output_dir,
+                        args.best_hyperparameters_json_path))
