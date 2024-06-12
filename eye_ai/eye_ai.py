@@ -368,3 +368,121 @@ class EyeAI(DerivaML):
         plt.show()
 
         return roc_csv_path
+
+    def compute_condition_label(self, icd10_asso: pd.DataFrame, icd10: pd.DataFrame) -> pd.DataFrame:
+        icd_mapping = {
+            'H40.0*': 'GS', 
+            'H40.1*': 'POAG', 
+            'H40.2*': 'PACG'
+        }
+        def map_icd_to_category(icd_code):
+            for key, value in icd_mapping.items():
+                if icd_code.startswith(key[:-1]):
+                    return value
+            return 'Other'
+
+        # Apply the mapping
+        icd10['Condition_Label'] = icd10['ICD10'].apply(map_icd_to_category)
+        combined = pd.merge(icd10_asso, icd10, left_on='ICD10_Eye', right_on='RID', how='left')[['Clinical_Records', 'Condition_Label']]
+        # Select severity
+        priority = {'PACG': 1, 'POAG': 2, 'GS': 3, 'Other': 4}
+        combined['Priority'] = combined['Condition_Label'].map(priority)
+        combined = combined.sort_values(by=['Clinical_Records', 'Priority'])
+        combined_prior = combined.drop_duplicates(subset=['Clinical_Records'], keep='first')
+        combined_prior = combined_prior.drop(columns=['Priority'])
+        return combined_prior[combined_prior['Condition_Label'] != 'Other']
+    
+    def insert_condition_label(self, condition_label: pd.DataFrame):
+        label_map = {e["Name"]: e["RID"] for e in self.schema.Condition_Label.entities()}
+        condition_label.replace({"Condition_Label": label_map}, inplace=True)
+        condition_label.rename(columns={'Clinical_Records': 'RID'}, inplace=True)
+        entities = condition_label.to_dict(orient='records')
+        # return entities
+        print(entities)
+        self._batch_update(self.schema.Clinical_Records,
+                           entities,
+                           [self.schema.Clinical_Records.Condition_Label])
+
+    def extract_modality(self, data_path):
+        subject = pd.read_csv(data_path/'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        observation = pd.read_csv(data_path/'data/Observation.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        image = pd.read_csv(data_path/'data/Image.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        clinic = pd.read_csv(data_path/'data/Clinical_Records.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        observation_clinic_asso = pd.read_csv(data_path/'data/Observation_Clinic_Asso.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        icd10 = pd.read_csv(data_path/'data/Clinic_ICD10.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        icd10_asso = pd.read_csv(data_path/'data/Clinic_ICD_Asso.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        report = pd.read_csv(data_path/'data/Report.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        RNFL_OCR = pd.read_csv(data_path/'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        HVF_OCR = pd.read_csv(data_path/'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+
+        
+        gender_vocab = self.list_vocabulary('Subject_Gender')[["RID", "Name"]].rename(
+            columns={"RID": 'Subject_Gender', "Name": "Gender"})
+        ethinicity_vocab = self.list_vocabulary('Subject_Ethnicity')[["RID", "Name"]].rename(
+            columns={"RID": 'Subject_Ethnicity', "Name": "Ethnicity"})
+        image_side_vocab = self.list_vocabulary('Image_Side_Vocab')[["RID", "Name"]].rename(
+            columns={"RID": 'Image_Side_Vocab', "Name": "Side"})
+        image_angle_vocab = self.list_vocabulary('Image_Angle_Vocab')[["RID", "Name"]].rename(
+            columns={"RID": 'Image_Angle_Vocab', "Name": "Angle"})
+        label_vocab = self.list_vocabulary('Condition_Label')[["RID", "Name"]].rename(
+            columns={"RID": 'Condition_Label', "Name": "Label"})
+        
+        subject = pd.merge(subject, gender_vocab, how="left", on='Subject_Gender')
+        subject = pd.merge(subject, ethinicity_vocab, how="left", on='Subject_Ethnicity')
+        subject = subject[['RID', 'Subject_ID', 'Gender', 'Ethnicity']]
+
+        subject_observation = pd.merge(subject, observation, left_on='RID', right_on='Subject', how='left',
+                               suffixes=('_Subject', '_Observation')).drop(columns=['Subject'])
+        subject_obs_clinic = pd.merge(subject_observation, 
+                              observation_clinic_asso, 
+                              left_on= 'RID_Observation', 
+                              right_on='Observation', 
+                              how='left').drop(columns=['RID', 'Observation'])
+        subject_obs_clinic_data = pd.merge(subject_obs_clinic, 
+                                   clinic,
+                                   left_on='Clinical_Records', 
+                                   right_on='RID',
+                                   suffixes=("_Observation", "_Clinic"),
+                                   how='left').drop(columns = ['Clinical_Records']).rename(columns={'RID':'RID_Clinic'})
+        # Clinical data
+        clinic = pd.merge(subject_obs_clinic_data, image_side_vocab, how="left", left_on='Powerform_Laterality', right_on='Image_Side_Vocab')
+        clinic = pd.merge(clinic, label_vocab, how="left", on='Condition_Label').drop(columns=['Powerform_Laterality', 'Image_Side_Vocab', 'Condition_Label'])
+
+        # Reports
+        subject_observation_report = pd.merge(subject_observation, report, 
+                                      left_on='RID_Observation', 
+                                      right_on='Observation', 
+                                      suffixes=("subject_observation_for_HVF", "report")).drop(columns = ['Observation']).rename(columns={'RID':'RID_Report'})
+        HVF = pd.merge(subject_observation_report, HVF_OCR, 
+                       left_on='RID_Report', 
+                       right_on='Report', 
+                       suffixes=("_subject_observation_for_HVF_report", "_HVF_OCR"), 
+                       how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['Report'])
+        HVF = pd.merge(HVF, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+        RNFL = pd.merge(subject_observation_report, RNFL_OCR, 
+                        left_on='RID_Report', 
+                        right_on='Report', 
+                        suffixes=("_subject_observation_for_RNFL_report", "_RNFL_OCR"), 
+                        how='left').rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['Report'])
+        RNFL = pd.merge(RNFL, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+        # Image
+        image = pd.merge(subject_observation, image, 
+                 left_on='RID_Observation', 
+                 right_on='Observation', 
+                 suffixes=("_subject_observation_for_image", 
+                           "_Image")).rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['Observation'])
+        image = pd.merge(image, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+        image = pd.merge(image, image_angle_vocab, how="left", on='Image_Angle_Vocab').drop(columns=['Image_Angle_Vocab'])
+        # Save df
+        clinic_path = PurePath(self.working_dir, 'clinic.csv')
+        clinic.to_csv(clinic_path, index=False)
+        HVF_path = PurePath(self.working_dir, 'HVF.csv')
+        HVF.to_csv(HVF_path, index=False)
+        RNFL_path = PurePath(self.working_dir, 'RNFL.csv')
+        RNFL.to_csv(RNFL_path, index=False)
+        image_path = PurePath(self.working_dir, 'image.csv')
+        image.to_csv(image_path, index=False)
+        return {"Clinic": clinic_path, "HVF": HVF_path, "RNFL": RNFL_path, "Image": image_path}
+
+        
+
