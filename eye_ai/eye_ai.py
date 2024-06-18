@@ -371,9 +371,25 @@ class EyeAI(DerivaML):
 
     def compute_condition_label(self, icd10_asso: pd.DataFrame, icd10: pd.DataFrame) -> pd.DataFrame:
         icd_mapping = {
-            'H40.0*': 'GS', 
-            'H40.1*': 'POAG', 
-            'H40.2*': 'PACG'
+        'H40.00*': 'GS',
+        'H40.01*': 'GS',
+        'H40.02*': 'GS',
+        'H40.03*': 'GS',
+        'H40.05*': 'GS',
+        'H40.06*': 'GS',
+        'H40.10*': 'POAG', 
+        'H40.11*': 'POAG', 
+        'H40.12*': 'POAG', 
+        'H40.15*': 'POAG', 
+        'H40.2*': 'PACG',
+        'H40.04*': 'Exclude',
+        'H40.13*': 'Exclude',
+        'H40.14*': 'Exclude',
+        'H40.3*': 'Exclude',
+        'H40.4*': 'Exclude',
+        'H40.5*': 'Exclude',
+        'H40.8*': 'Exclude',
+        'H40.9*': 'Exclude' 
         }
         def map_icd_to_category(icd_code):
             for key, value in icd_mapping.items():
@@ -385,7 +401,7 @@ class EyeAI(DerivaML):
         icd10['Condition_Label'] = icd10['ICD10'].apply(map_icd_to_category)
         combined = pd.merge(icd10_asso, icd10, left_on='ICD10_Eye', right_on='RID', how='left')[['Clinical_Records', 'Condition_Label']]
         # Select severity
-        priority = {'PACG': 1, 'POAG': 2, 'GS': 3, 'Other': 4}
+        priority = {'PACG': 1, 'POAG': 2, 'GS': 3, 'Exclude': 4, 'Other': 5}
         combined['Priority'] = combined['Condition_Label'].map(priority)
         combined = combined.sort_values(by=['Clinical_Records', 'Priority'])
         combined_prior = combined.drop_duplicates(subset=['Clinical_Records'], keep='first')
