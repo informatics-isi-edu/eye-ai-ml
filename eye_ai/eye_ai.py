@@ -464,7 +464,7 @@ class EyeAI(DerivaML):
         clinic = pd.merge(subject_obs_clinic_data, image_side_vocab, how="left", left_on='Powerform_Laterality', right_on='Image_Side_Vocab')
         clinic = pd.merge(clinic, label_vocab, how="left", on='Condition_Label').drop(columns=['Powerform_Laterality', 'Image_Side_Vocab', 'Condition_Label'])
 
-        # Reports
+        # Report_HVF
         subject_observation_report = pd.merge(subject_observation, report, 
                                       left_on='RID_Observation', 
                                       right_on='Observation', 
@@ -475,12 +475,29 @@ class EyeAI(DerivaML):
                        suffixes=("_subject_observation_for_HVF_report", "_HVF_OCR"), 
                        how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['Report'])
         HVF = pd.merge(HVF, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+        def select_24_2(HVF):
+            HVF_clean = HVF.dropna(subset=['RID_HVF_OCR'])
+            priority = {'24-2': 1, '10-2': 2, '30-2': 3}
+            HVF_clean['priority'] = HVF_clean['Field_Size'].map(priority)
+            HVF_sorted = HVF_clean.sort_values(by=['RID_Observation', 'priority'])
+            result = HVF_sorted.groupby('RID_Observation').first().reset_index()
+            return result
+        HVF = select_24_2(HVF)
+
+        # Report_RNFL
         RNFL = pd.merge(subject_observation_report, RNFL_OCR, 
                         left_on='RID_Report', 
                         right_on='Report', 
                         suffixes=("_subject_observation_for_RNFL_report", "_RNFL_OCR"), 
                         how='left').rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['Report'])
         RNFL = pd.merge(RNFL, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+
+        def highest_signal_strength(RNFL):
+            RNFL_clean = RNFL.dropna(subset=['RID_RNFL_OCR', 'Signal_Strength'])
+            idx = RNFL_clean.groupby(['RID_Observation', 'Side'])['Signal_Strength'].idxmax()
+            result = RNFL_clean.loc[idx]
+            return result
+        RNFL = highest_signal_strength(RNFL)
         # Image
         image = pd.merge(subject_observation, image, 
                  left_on='RID_Observation', 
