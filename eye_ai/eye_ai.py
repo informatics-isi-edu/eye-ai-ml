@@ -297,7 +297,7 @@ class EyeAI(DerivaML):
         bbox = (x_min, y_min, x_min + width, y_min + height)
         return bbox
 
-    def create_cropped_images(self, bag_path: str, output_dir: str, crop_to_eye: bool) -> tuple:
+    def create_cropped_images(self, exclude_list: list=[], bag_path: str, output_dir: str, crop_to_eye: bool) -> tuple:
         """
         Retrieves cropped images and saves them to the specified directory and seperated in two folders by class.
 
@@ -323,19 +323,20 @@ class EyeAI(DerivaML):
         for index, row in image_annot_df.iterrows():
             if row['Annotation_Function'] != raw_crop or crop_to_eye:
                 image_rid = row['Image']
-                svg_path = svg_root_path + f'Cropped_{image_rid}.svg'
-                bbox = self.get_bounding_box(svg_path)
-                image_file_name = image_df[image_df['RID'] == image_rid]['Filename'].values[0]
-                image_file_path = image_root_path + image_file_name
-                image = Image.open(image_file_path)
-                cropped_image = image.crop(bbox)
-                diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'C1T4')
-                                 & (diagnosis['Image'] == image_rid)]['Diagnosis_Vocab'].iloc[0]
-                if diag == '2SKC':
-                    cropped_image.save(f'{str(cropped_path_2SKC)}/Cropped_{image_rid}.JPG')
-                else:
-                    cropped_image.save(f'{str(cropped_path_2SKA)}/Cropped_{image_rid}.JPG')
-                image_annot_df["Cropped Filename"] = 'Cropped_' + image_file_name
+                if image_rid not in exclude_list:
+                    svg_path = svg_root_path + f'Cropped_{image_rid}.svg'
+                    bbox = self.get_bounding_box(svg_path)
+                    image_file_name = image_df[image_df['RID'] == image_rid]['Filename'].values[0]
+                    image_file_path = image_root_path + image_file_name
+                    image = Image.open(image_file_path)
+                    cropped_image = image.crop(bbox)
+                    diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'C1T4')
+                                     & (diagnosis['Image'] == image_rid)]['Diagnosis_Vocab'].iloc[0]
+                    if diag == '2SKC':
+                        cropped_image.save(f'{str(cropped_path_2SKC)}/Cropped_{image_rid}.JPG')
+                    else:
+                        cropped_image.save(f'{str(cropped_path_2SKA)}/Cropped_{image_rid}.JPG')
+                    image_annot_df["Cropped Filename"] = 'Cropped_' + image_file_name
         output_csv = PurePath(self.working_dir, 'Cropped_Image.csv')
         image_annot_df.to_csv(output_csv)
         return cropped_path, output_csv 
