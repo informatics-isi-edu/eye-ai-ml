@@ -297,7 +297,7 @@ class EyeAI(DerivaML):
         bbox = (x_min, y_min, x_min + width, y_min + height)
         return bbox
 
-    def create_cropped_images(self, exclude_list: list=[], bag_path: str, output_dir: str, crop_to_eye: bool) -> tuple:
+    def create_cropped_images(self, bag_path: str, output_dir: str, crop_to_eye: bool, exclude_list: List=[]) -> tuple:
         """
         Retrieves cropped images and saves them to the specified directory and seperated in two folders by class.
 
