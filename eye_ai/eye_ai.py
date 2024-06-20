@@ -336,7 +336,7 @@ class EyeAI(DerivaML):
                         cropped_image.save(f'{str(cropped_path_2SKC)}/Cropped_{image_rid}.JPG')
                     else:
                         cropped_image.save(f'{str(cropped_path_2SKA)}/Cropped_{image_rid}.JPG')
-                    image_annot_df["Cropped Filename"] = 'Cropped_' + image_file_name
+                    image_annot_df.loc[index, 'Cropped Filename'] = 'Cropped_' + image_file_name
         output_csv = PurePath(self.working_dir, 'Cropped_Image.csv')
         image_annot_df.to_csv(output_csv)
         return cropped_path, output_csv 
