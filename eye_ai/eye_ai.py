@@ -475,6 +475,7 @@ class EyeAI(DerivaML):
             HVF_clean['priority'] = HVF_clean['Field_Size'].map(priority)
             HVF_sorted = HVF_clean.sort_values(by=['RID_Observation', 'priority'])
             result = HVF_sorted.groupby('RID_Observation').first().reset_index()
+            result = result.drop(columns=['priority'])
             return result
         HVF = select_24_2(HVF)
 
@@ -497,19 +498,69 @@ class EyeAI(DerivaML):
                  left_on='RID_Observation', 
                  right_on='Observation', 
                  suffixes=("_subject_observation_for_image", 
-                           "_Image")).rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['Observation'])
+                           "_Image")).rename(columns={'RID': 'RID_Image'}).drop(columns=['Observation'])
         image = pd.merge(image, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
         image = pd.merge(image, image_angle_vocab, how="left", on='Image_Angle_Vocab').drop(columns=['Image_Angle_Vocab'])
+
+        # Select the observation according fundus date of encounter
+        fundus = image[['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation', 'Observation_ID', 'Date_of_Encounter']].drop_duplicates()
+        def closest_to_fundus(report, fundus):
+            report['Date_of_Encounter'] = pd.to_datetime(report['Date_of_Encounter'])
+            fundus['Date_of_Encounter'] = pd.to_datetime(fundus['Date_of_Encounter'])
+            report_match = pd.DataFrame()
+            def find_closest_date(target_date, dates):
+                return min(dates, key=lambda d: abs(d - target_date))
+        
+            for idx, row in fundus.iterrows():
+                rid = row['RID_Subject']
+                target_date = row['Date_of_Encounter']
+        
+                for side in ['Left', 'Right']:
+                    filtered_data = report[(report['RID_Subject'] == rid) & (report['Side'] == side)]
+                    if not filtered_data.empty:
+                        # Find the closest date entry
+                        if sum(filtered_data['Date_of_Encounter'].isna()) > 0:
+                            report_match = pd.concat([report_match, filtered_data.iloc[0]])
+                        else:
+                            closest_date = find_closest_date(target_date, filtered_data['Date_of_Encounter'])
+                            closest_entries = filtered_data[filtered_data['Date_of_Encounter'] == closest_date]
+                            report_match = pd.concat([report_match, closest_entries])
+            return report_match
+            
+        HVF_match = closest_to_fundus(HVF, fundus)
+        RNFL_match = closest_to_fundus(RNFL, fundus)
+        clinic_match = pd.merge(fundus, clinic, how='left', on = 'RID_Observation', suffixes=("", "_Clinic"))[['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
+                                                                                                         'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
+                                                                                                         'Date_of_Encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
+                                                                                                         'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
+                                                                                                         'Clinical_ID', 'Side', 'Label']]
+
+        RNFL_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_RNFL'}, inplace=True)
+        HVF_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_HVF'}, inplace=True)
+        fundus.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_Fundus'}, inplace=True)
+
         # Save df
         clinic_path = PurePath(self.working_dir, 'clinic.csv')
-        clinic.to_csv(clinic_path, index=False)
+        clinic_match.to_csv(clinic_path, index=False)
         HVF_path = PurePath(self.working_dir, 'HVF.csv')
-        HVF.to_csv(HVF_path, index=False)
+        HVF_match.to_csv(HVF_path, index=False)
         RNFL_path = PurePath(self.working_dir, 'RNFL.csv')
-        RNFL.to_csv(RNFL_path, index=False)
-        image_path = PurePath(self.working_dir, 'image.csv')
-        image.to_csv(image_path, index=False)
-        return {"Clinic": clinic_path, "HVF": HVF_path, "RNFL": RNFL_path, "Image": image_path}
+        RNFL_match.to_csv(RNFL_path, index=False)
+        fundus_path = PurePath(self.working_dir, 'fundus.csv')
+        fundus.to_csv(fundus_path, index=False)
+        return {"Clinic": clinic_path, "HVF": HVF_path, "RNFL": RNFL_path, "Fundus": fundus_path}
 
-        
-
+    def multimodal_wide(self, data_path):
+        modality_df = self.extract_modality(data_path)
+        Clinic = pd.read_csv(modality_df['Clinic'])
+        RNFL = pd.read_csv(modality_df['RNFL'])
+        Fundus = pd.read_csv(modality_df['Fundus'])
+        HVF = pd.read_csv(modality_df['HVF'])
+        Clinic.drop(columns=['RID_Observation', 'Observation_ID', 'Date_of_Encounter_Observation'], inplace=True)
+        RNFL.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
+        HVF.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
+        Fundus.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
+        multimodal_wide = pd.merge(Fundus, Clinic, how='left', on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity'])
+        multimodal_wide = pd.merge(multimodal_wide, HVF, how='left', on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
+        multimodal_wide = pd.merge(multimodal_wide, RNFL, how='left', on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
+        return multimodal_wide
