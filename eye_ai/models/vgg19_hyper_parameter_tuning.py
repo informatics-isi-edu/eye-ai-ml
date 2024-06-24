@@ -349,7 +349,7 @@ def objective(trial, train_path, valid_path, graded_test_path):
 def print_best_callback(study, trial):
     print(f"Best value: {study.best_value}, Best params: {study.best_trial.params}")
 
-def main(train_path, valid_path, graded_test_path, output_path, n_trials):
+def main(train_path, valid_path, graded_test_path, output_path, n_trials, vgg19_hyperparameter_study_name, best_parameters_json_file_name):
     os.makedirs(output_path, exist_ok=True)
   
     study = optuna.create_study(
@@ -366,10 +366,10 @@ def main(train_path, valid_path, graded_test_path, output_path, n_trials):
     study.optimize(objective_with_paths, n_trials=n_trials, callbacks=[print_best_callback])
   
     # Save the study and the best trial parameters as JSON
-    joblib.dump(study, os.path.join(output_path, 'vgg19_hyperparameter_study.pkl'))
+    joblib.dump(study, os.path.join(output_path, f'{vgg19_hyperparameter_study_name}.pkl'))
 
     best_params = study.best_trial.params
-    best_params_path = os.path.join(output_path, 'best_hyperparameters.json')
+    best_params_path = os.path.join(output_path, f'{best_parameters_json_file_name}.json')
     with open(best_params_path, 'w') as f:
         json.dump(best_params, f, indent=4)
     
@@ -386,6 +386,8 @@ if __name__ == '__main__':
     parser.add_argument('--graded_test_path', type=str, required=True)
     parser.add_argument('--output_path', type=str, required=True)
     parser.add_argument('--n_trials', type=int, default=3)
+    parser.add_argument('--vgg19_hyperparameter_study_name', type=str, required=True)
+    parser.add_argument('--best_parameters_json_file_name', type=str, required=True)
     args = parser.parse_args()
     main(args.train_path, args.valid_path, args.graded_test_path, args.output_path, args.n_trials)
 
