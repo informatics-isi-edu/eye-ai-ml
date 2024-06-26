@@ -92,7 +92,7 @@ def get_data_generators(train_path, valid_path, test_path, best_params):
     
     return train_generator, validation_generator, test_generator
 
-def train_and_evaluate(train_path, valid_path, test_path, output_path, best_params):
+def train_and_evaluate(train_path, valid_path, test_path, output_path, best_params, model_name):
     set_seeds()
 
     train_generator, validation_generator, test_generator = get_data_generators(train_path, valid_path, test_path, best_params)
@@ -177,15 +177,18 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
 
     print(f"""Model Eval results: {results}""")
 
-    model.save(os.path.join(output_path, 'VGG19_Catalog_LAC_DHS_Cropped_Data_Trained_model.h5'))
+    if model_name:
+        model.save(os.path.join(output_path, f'{model_name}.h5'))
+    else:
+        model.save(os.path.join(output_path, 'VGG19_Catalog_LAC_DHS_Cropped_Data_Trained_model.h5'))
     
     # Convert the history.history dict to a pandas DataFrame:     
     hist_df = pd.DataFrame(training_log.history) 
 
     # Save to csv: 
-    hist_df.to_csv(os.path.join(output_path, 'training_history.csv'), index=False)
+    hist_df.to_csv(os.path.join(output_path, f'training_history_{model_name}.csv'), index=False)
     
-    logging.info("VGG19_Catalog_LAC_DHS_Cropped_Data_Trained_model.h5 Model trained, Model and training history are saved successfully.")
+    logging.info(f"{model_name} Model trained, Model and training history are saved successfully.")
 
 # def main(train_path, valid_path, test_path, output_path):
 #     logging.basicConfig(level=logging.INFO)
@@ -221,14 +224,14 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
 
 #     train_and_evaluate(train_path, valid_path, test_path, output_path, best_params)
 
-def main(train_path, valid_path, test_path, output_path, best_hyperparameters_json_path):
+def main(train_path, valid_path, test_path, output_path, best_hyperparameters_json_path, model_name):
     logging.basicConfig(level=logging.INFO)
     
     # Load best parameters from JSON
     with open(best_hyperparameters_json_path, 'r') as file:
         best_params = json.load(file)
 
-    train_and_evaluate(train_path, valid_path, test_path, output_path, best_params)
+    train_and_evaluate(train_path, valid_path, test_path, output_path, best_params, model_name)
 
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser()
@@ -247,6 +250,7 @@ if __name__ == '__main__':
     parser.add_argument('--test_path', type=str, required=True, help='Path to the test images')
     parser.add_argument('--output_path', type=str, required=True, help='Path where the trained model should be saved')
     parser.add_argument('--best_hyperparameters_json_path', type=str, required=True, help='Path to the JSON file with best hyperparameters')
+    parser.add_argument('--model_name', type=str, required=True, help='Name of the Trained model with best hyperparameters')
     args = parser.parse_args()
 
     main(args.train_path, args.valid_path, args.test_path, args.output_path, args.best_hyperparameters_json_path)
