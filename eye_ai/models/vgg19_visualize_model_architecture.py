@@ -19,9 +19,9 @@ def visualize_model_architecture(model_path, output_path):
     # Load the model
     model = load_model(model_path, custom_objects={'f1_score_normal': f1_score_normal})
     
-    # Plot the model
-    plot_model(model, to_file=output_path, show_shapes=True, show_layer_names=True)
-    print(f"Model architecture diagram saved to {output_path}")
+    # Plot the model with 300 DPI
+    plot_model(model, to_file=output_path, show_shapes=True, show_layer_names=True, dpi=300)
+    print(f"Model architecture diagram saved to {output_path} at 300 DPI")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Visualize Keras model architecture")
