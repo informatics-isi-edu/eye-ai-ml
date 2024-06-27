@@ -25,7 +25,12 @@ from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.metrics import classification_report, roc_auc_score, f1_score, precision_score, recall_score, accuracy_score
 
 # ... [keep the set_seeds and preprocess_input_vgg19 functions as they are] ...
-
+def set_seeds():
+    os.environ['PYTHONHASHSEED'] = '0'
+    np.random.seed(42)
+    random.seed(42)
+    tf.random.set_seed(42)
+    
 @keras.saving.register_keras_serializable()
 def f1_score_multi(y_true, y_pred):
     def recall(y_true, y_pred):
