@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 import tensorflow as tf
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from sklearn.metrics import classification_report, roc_auc_score, f1_score, confusion_matrix, accuracy_score, precision_score, recall_score
+from sklearn.metrics import classification_report, roc_auc_score, f1_score, confusion_matrix, accuracy_score, precision_score, recall_score, roc_curve
 from sklearn.preprocessing import label_binarize
 
 def preprocess_input_vgg19(x):
@@ -96,7 +96,7 @@ def evaluate_model(model_path, test_path, output_path, best_params):
 
     # Plot confusion matrix
     cm = confusion_matrix(y_true, y_pred_classes)
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(10, 8), dpi=300)  # Set DPI to 300
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
     plt.title('Confusion Matrix')
     plt.colorbar()
@@ -109,13 +109,13 @@ def evaluate_model(model_path, test_path, output_path, best_params):
         for j in range(cm.shape[1]):
             plt.text(j, i, str(cm[i, j]), ha="center", va="center")
     plt.tight_layout()
-    plt.savefig(Path(output_path) / 'confusion_matrix.png')
+    plt.savefig(Path(output_path) / 'confusion_matrix.png', dpi=300)  # Save at 300 DPI
     plt.close()
 
-    print("Confusion matrix saved as confusion_matrix.png")
+    print("Confusion matrix saved as confusion_matrix.png (300 DPI)")
 
     # Plot ROC curves
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(10, 8), dpi=300)  # Set DPI to 300
     for i, class_name in enumerate(classes.keys()):
         fpr, tpr, _ = roc_curve(y_true_bin[:, i], y_pred[:, i])
         roc_auc = roc_auc_score(y_true_bin[:, i], y_pred[:, i])
@@ -128,10 +128,10 @@ def evaluate_model(model_path, test_path, output_path, best_params):
     plt.ylabel('True Positive Rate')
     plt.title('Receiver Operating Characteristic (ROC) Curve')
     plt.legend(loc="lower right")
-    plt.savefig(Path(output_path) / 'roc_curves.png')
+    plt.savefig(Path(output_path) / 'roc_curves.png', dpi=300)  # Save at 300 DPI
     plt.close()
 
-    print("ROC curves saved as roc_curves.png")
+    print("ROC curves saved as roc_curves.png (300 DPI)")
 
 if __name__ == '__main__':
     import argparse
