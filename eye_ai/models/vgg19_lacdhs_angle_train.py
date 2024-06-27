@@ -10,6 +10,7 @@ import json
 
 import pandas as pd
 from sklearn.utils import class_weight
+from sklearn.metrics import classification_report, f1_score
 
 import keras
 import tensorflow as tf
@@ -22,9 +23,7 @@ from tensorflow.keras.metrics import AUC, Accuracy, Precision, Recall
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from tensorflow.keras import backend as K
 from tensorflow.keras.callbacks import EarlyStopping
-from sklearn.metrics import classification_report, roc_auc_score, f1_score, precision_score, recall_score, accuracy_score
 
-# ... [keep the set_seeds and preprocess_input_vgg19 functions as they are] ...
 def set_seeds():
     os.environ['PYTHONHASHSEED'] = '0'
     np.random.seed(42)
@@ -33,24 +32,6 @@ def set_seeds():
 
 def preprocess_input_vgg19(x):
     return tf.keras.applications.vgg19.preprocess_input(x)
-    
-@keras.saving.register_keras_serializable()
-def f1_score_multi(y_true, y_pred):
-    def recall(y_true, y_pred):
-        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-        possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-        recall = true_positives / (possible_positives + K.epsilon())
-        return recall
-
-    def precision(y_true, y_pred):
-        true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-        predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-        precision = true_positives / (predicted_positives + K.epsilon())
-        return precision
-    
-    precision = precision(y_true, y_pred)
-    recall = recall(y_true, y_pred)
-    return 2*((precision*recall)/(precision+recall+K.epsilon()))
 
 def get_data_generators(train_path, valid_path, test_path, best_params):
     # Data generators
@@ -97,6 +78,11 @@ def get_data_generators(train_path, valid_path, test_path, best_params):
     
     return train_generator, validation_generator, test_generator
 
+def f1_score_metric(y_true, y_pred):
+    y_pred_classes = tf.argmax(y_pred, axis=1)
+    y_true_classes = tf.argmax(y_true, axis=1)
+    return tf.py_function(lambda yt, yp: f1_score(yt, yp, average='macro'), [y_true_classes, y_pred_classes], tf.float64)
+
 def train_and_evaluate(train_path, valid_path, test_path, output_path, best_params, model_name):
     set_seeds()
 
@@ -127,7 +113,7 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
     
         x = Dropout(best_params[f'dropout_{i}'])(x)
     
-    outputs = Dense(3, activation='softmax')(x)  # Changed to 3 units with softmax activation
+    outputs = Dense(3, activation='softmax')(x)  # 3 units for 3 classes with softmax activation
     model = Model(inputs, outputs)
     
     # Unfreeze the base_model
@@ -142,15 +128,19 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
         loss=CategoricalCrossentropy(),
         metrics=[
             tf.keras.metrics.AUC(curve="ROC", multi_label=True, num_labels=3, name="roc_auc_score"),
-            f1_score_multi,
             tf.keras.metrics.CategoricalAccuracy(name="accuracy_score"),
+            f1_score_metric
         ]
     )
     
     # Training
     class_weights = None
     if best_params['use_class_weights']:
-        class_weights = class_weight.compute_class_weight(class_weight='balanced', classes=np.unique(train_generator.classes), y=train_generator.classes)
+        class_weights = class_weight.compute_class_weight(
+            class_weight='balanced',
+            classes=np.unique(train_generator.classes),
+            y=train_generator.classes
+        )
         class_weights = dict(enumerate(class_weights))
 
     num_workers = os.cpu_count()
@@ -165,7 +155,8 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
         use_multiprocessing=True,
         callbacks=[
             EarlyStopping(monitor='val_loss', patience=10, verbose=1),
-            EarlyStopping(monitor='val_roc_auc_score', mode='max', verbose=1, patience=8, restore_best_weights=True),
+            EarlyStopping(monitor='val_accuracy_score', mode='max', verbose=1, patience=8, restore_best_weights=True),
+            EarlyStopping(monitor='val_f1_score_metric', mode='max', verbose=1, patience=8, restore_best_weights=True),
         ],
     )
 
@@ -173,6 +164,24 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
     results = model.evaluate(test_generator)
     logging.info(f"Test results - {results}")
     print(f"Model Eval results: {results}")
+
+    # Detailed evaluation metrics
+    y_pred = model.predict(test_generator)
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    y_true = test_generator.classes
+
+    class_names = list(test_generator.class_indices.keys())
+    
+    # Calculate and log detailed metrics
+    report = classification_report(y_true, y_pred_classes, target_names=class_names, output_dict=True)
+    logging.info("Detailed Classification Report:")
+    logging.info(json.dumps(report, indent=2))
+
+    # Calculate and log multi-class F1 score
+    f1_macro = f1_score(y_true, y_pred_classes, average='macro')
+    f1_weighted = f1_score(y_true, y_pred_classes, average='weighted')
+    logging.info(f"Macro F1 Score: {f1_macro}")
+    logging.info(f"Weighted F1 Score: {f1_weighted}")
 
     if model_name:
         model.save(os.path.join(output_path, f'{model_name}.h5'))
