@@ -30,6 +30,9 @@ def set_seeds():
     np.random.seed(42)
     random.seed(42)
     tf.random.set_seed(42)
+
+def preprocess_input_vgg19(x):
+    return tf.keras.applications.vgg19.preprocess_input(x)
     
 @keras.saving.register_keras_serializable()
 def f1_score_multi(y_true, y_pred):
