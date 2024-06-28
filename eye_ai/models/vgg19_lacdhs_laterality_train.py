@@ -53,8 +53,8 @@ def get_data_generators(train_path, valid_path, test_path, best_params):
         rotation_range=best_params['rotation_range'],
         width_shift_range=best_params['width_shift_range'],
         height_shift_range=best_params['height_shift_range'],
-        horizontal_flip=best_params['horizontal_flip'],
-        vertical_flip=best_params['vertical_flip'],
+        # horizontal_flip=best_params['horizontal_flip'],
+        # vertical_flip=best_params['vertical_flip'],
         zoom_range=[1 + best_params['zoom_range'], 1 - best_params['zoom_range']],
         brightness_range=[1 - best_params['brightness_range'], 1 + best_params['brightness_range']] if best_params['brightness_range'] != 0 else None
     )
@@ -180,7 +180,7 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
     if model_name:
         model.save(os.path.join(output_path, f'{model_name}.h5'))
     else:
-        model.save(os.path.join(output_path, 'VGG19_Catalog_LAC_DHS_Cropped_Data_Trained_model.h5'))
+        model.save(os.path.join(output_path, 'VGG19_Catalog_LAC_DHS_Laterality_Trained_model.h5'))
     
     # Convert the history.history dict to a pandas DataFrame:     
     hist_df = pd.DataFrame(training_log.history) 
