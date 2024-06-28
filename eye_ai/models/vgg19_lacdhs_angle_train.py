@@ -40,8 +40,8 @@ def get_data_generators(train_path, valid_path, test_path, best_params):
         rotation_range=best_params['rotation_range'],
         width_shift_range=best_params['width_shift_range'],
         height_shift_range=best_params['height_shift_range'],
-        horizontal_flip=best_params['horizontal_flip'],
-        vertical_flip=best_params['vertical_flip'],
+        # horizontal_flip=best_params['horizontal_flip'], #flips are not required for angle prediction
+        # vertical_flip=best_params['vertical_flip'],
         zoom_range=[1 + best_params['zoom_range'], 1 - best_params['zoom_range']],
         brightness_range=[1 - best_params['brightness_range'], 1 + best_params['brightness_range']] if best_params['brightness_range'] != 0 else None
     )
