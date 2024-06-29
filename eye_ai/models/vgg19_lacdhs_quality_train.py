@@ -130,7 +130,7 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
         optimizer=optimizer,
         loss=CategoricalCrossentropy(),
         metrics=[
-            tf.keras.metrics.AUC(curve="ROC", multi_label=True, num_labels=5, name="roc_auc_score"),
+            tf.keras.metrics.AUC(curve="ROC", multi_label=True, num_labels=4, name="roc_auc_score"),
             tf.keras.metrics.CategoricalAccuracy(name="accuracy_score"),
             f1_score_metric
         ]
