@@ -25,7 +25,7 @@ def evaluate_model(model_path, test_path, output_path, best_params):
     # Prepare the test data generator
     test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
 
-    classes = {'69XT': 0, '69XP': 1, '69XJ': 2, '69XM': 3, '69XR': 4}
+    classes = {'69XT': 0, '69XP': 1, '69XJ': 2, '69XM': 3, } #'69XR': 4
 
     test_generator = test_datagen.flow_from_directory(
         test_path,
