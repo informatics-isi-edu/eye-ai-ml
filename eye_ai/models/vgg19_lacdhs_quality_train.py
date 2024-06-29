@@ -52,7 +52,7 @@ def get_data_generators(train_path, valid_path, test_path, best_params):
         '69XP': 1,  # Adequate
         '69XJ': 2,  # Good
         '69XM': 3,  # Insufficient for Full Interpretation
-        '69XR': 4,  # Insufficient for Any Interpretation
+        # '69XR': 4,  # Insufficient for Any Interpretation
     }
     train_generator = train_datagen.flow_from_directory(
         train_path,
@@ -116,7 +116,7 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
     
         x = Dropout(best_params[f'dropout_{i}'])(x)
     
-    outputs = Dense(5, activation='softmax')(x)  # 5 units for 5 quality classes with softmax activation
+    outputs = Dense(4, activation='softmax')(x)  # 5 units for 5 quality classes with softmax activation
     model = Model(inputs, outputs)
     
     # Unfreeze the base_model
