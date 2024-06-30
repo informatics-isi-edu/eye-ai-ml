@@ -33,7 +33,7 @@ def set_seeds():
 def preprocess_input_vgg19(x):
     return tf.keras.applications.vgg19.preprocess_input(x)
 
-def get_data_generators(train_path, valid_path, test_path, best_params):
+def get_data_generators(train_path, valid_path, best_params): #, test_path
     # Data generators
     train_datagen = ImageDataGenerator(
         preprocessing_function=preprocess_input_vgg19,
@@ -45,7 +45,7 @@ def get_data_generators(train_path, valid_path, test_path, best_params):
     )
     
     val_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
-    test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
+    # test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
 
     classes = {
         '690J': 0,  # Good
@@ -66,28 +66,28 @@ def get_data_generators(train_path, valid_path, test_path, best_params):
         classes=classes
     )
     
-    test_generator = test_datagen.flow_from_directory(
-        test_path,
-        target_size=(224, 224),
-        class_mode='categorical',
-        classes=classes
-    )
+    # test_generator = test_datagen.flow_from_directory(
+    #     test_path,
+    #     target_size=(224, 224),
+    #     class_mode='categorical',
+    #     classes=classes
+    # )
     
     print("train_generator.class_indices : ", train_generator.class_indices)
     print("validation_generator.class_indices : ", validation_generator.class_indices)
-    print("test_generator.class_indices : ", test_generator.class_indices)
+    # print("test_generator.class_indices : ", test_generator.class_indices)
     
-    return train_generator, validation_generator, test_generator
+    return train_generator, validation_generator, #test_generator
 
 def f1_score_metric(y_true, y_pred):
     y_pred_classes = tf.argmax(y_pred, axis=1)
     y_true_classes = tf.argmax(y_true, axis=1)
     return tf.py_function(lambda yt, yp: f1_score(yt, yp, average='macro'), [y_true_classes, y_pred_classes], tf.float64)
 
-def train_and_evaluate(train_path, valid_path, test_path, output_path, best_params, model_name):
+def train_and_evaluate(train_path, valid_path, output_path, best_params, model_name): #, test_path
     set_seeds()
 
-    train_generator, validation_generator, test_generator = get_data_generators(train_path, valid_path, test_path, best_params)
+    train_generator, validation_generator = get_data_generators(train_path, valid_path, best_params) #, test_generator , test_path
     
     # Model building
     K.clear_session()  # Clear session
@@ -162,27 +162,27 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
     )
 
     # Evaluate the model on the test set
-    results = model.evaluate(test_generator)
-    logging.info(f"Test results - {results}")
-    print(f"Model Eval results: {results}")
+    # results = model.evaluate(test_generator)
+    # logging.info(f"Test results - {results}")
+    # print(f"Model Eval results: {results}")
 
-    # Detailed evaluation metrics
-    y_pred = model.predict(test_generator)
-    y_pred_classes = np.argmax(y_pred, axis=1)
-    y_true = test_generator.classes
+    # # Detailed evaluation metrics
+    # y_pred = model.predict(test_generator)
+    # y_pred_classes = np.argmax(y_pred, axis=1)
+    # y_true = test_generator.classes
 
-    class_names = list(test_generator.class_indices.keys())
+    # class_names = list(test_generator.class_indices.keys())
     
-    # Calculate and log detailed metrics
-    report = classification_report(y_true, y_pred_classes, target_names=class_names, output_dict=True)
-    logging.info("Detailed Classification Report:")
-    logging.info(json.dumps(report, indent=2))
+    # # Calculate and log detailed metrics
+    # report = classification_report(y_true, y_pred_classes, target_names=class_names, output_dict=True)
+    # logging.info("Detailed Classification Report:")
+    # logging.info(json.dumps(report, indent=2))
 
-    # Calculate and log multi-class F1 score
-    f1_macro = f1_score(y_true, y_pred_classes, average='macro')
-    f1_weighted = f1_score(y_true, y_pred_classes, average='weighted')
-    logging.info(f"Macro F1 Score: {f1_macro}")
-    logging.info(f"Weighted F1 Score: {f1_weighted}")
+    # # Calculate and log multi-class F1 score
+    # f1_macro = f1_score(y_true, y_pred_classes, average='macro')
+    # f1_weighted = f1_score(y_true, y_pred_classes, average='weighted')
+    # logging.info(f"Macro F1 Score: {f1_macro}")
+    # logging.info(f"Weighted F1 Score: {f1_weighted}")
 
     if model_name:
         model.save(os.path.join(output_path, f'{model_name}.h5'))
@@ -195,23 +195,23 @@ def train_and_evaluate(train_path, valid_path, test_path, output_path, best_para
     
     logging.info(f"{model_name} Quality Model (Van Graded) trained, Model and training history are saved successfully.")
 
-def main(train_path, valid_path, test_path, output_path, best_hyperparameters_json_path, model_name):
+def main(train_path, valid_path, output_path, best_hyperparameters_json_path, model_name): #, test_path
     logging.basicConfig(level=logging.INFO)
     
     # Load best parameters from JSON
     with open(best_hyperparameters_json_path, 'r') as file:
         best_params = json.load(file)
 
-    train_and_evaluate(train_path, valid_path, test_path, output_path, best_params, model_name)
+    train_and_evaluate(train_path, valid_path, output_path, best_params, model_name) #, test_path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--train_path', type=str, required=True, help='Path to the training images')
     parser.add_argument('--valid_path', type=str, required=True, help='Path to the validation images')
-    parser.add_argument('--test_path', type=str, required=True, help='Path to the test images')
+    # parser.add_argument('--test_path', type=str, required=True, help='Path to the test images')
     parser.add_argument('--output_path', type=str, required=True, help='Path where the trained model should be saved')
     parser.add_argument('--best_hyperparameters_json_path', type=str, required=True, help='Path to the JSON file with best hyperparameters')
     parser.add_argument('--model_name', type=str, required=True, help='Name of the Trained model with best hyperparameters')
     args = parser.parse_args()
 
-    main(args.train_path, args.valid_path, args.test_path, args.output_path, args.best_hyperparameters_json_path, args.model_name)
+    main(args.train_path, args.valid_path, args.output_path, args.best_hyperparameters_json_path, args.model_name) #, args.test_path
