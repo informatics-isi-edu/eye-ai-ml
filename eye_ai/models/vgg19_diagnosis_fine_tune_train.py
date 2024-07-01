@@ -13,14 +13,83 @@ from sklearn.utils import class_weight
 
 import keras
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.losses import BinaryCrossentropy
-from tensorflow.keras.metrics import AUC, BinaryAccuracy
+from tensorflow.keras.applications import VGG19
+from tensorflow.keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D, BatchNormalization
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop
+from tensorflow.keras.losses import BinaryCrossentropy, Hinge, SquaredHinge, LogCosh
+from tensorflow.keras.metrics import AUC, Accuracy, Precision, Recall, BinaryAccuracy
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras import backend as K
 from tensorflow.keras.callbacks import EarlyStopping
+from sklearn.metrics import classification_report, roc_auc_score, f1_score, precision_score, recall_score, accuracy_score, balanced_accuracy_score, matthews_corrcoef
 
-# ... (keep all the existing imports and helper functions)
+
+def set_seeds():
+    os.environ['PYTHONHASHSEED'] = '0'
+    np.random.seed(42)
+    random.seed(42)
+    tf.random.set_seed(42)
+
+# Define custom F1 score metric
+@keras.saving.register_keras_serializable()
+def f1_score_normal(y_true, y_pred): #taken from old keras source code
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    recall = true_positives / (possible_positives + K.epsilon())
+    f1_val = 2*(precision*recall)/(precision+recall+K.epsilon())
+    return f1_val
+
+def preprocess_input_vgg19(x):
+    return tf.keras.applications.vgg19.preprocess_input(x)
+
+def get_data_generators(train_path, valid_path, test_path, best_params):
+    # Data generators
+    train_datagen = ImageDataGenerator(
+        preprocessing_function=preprocess_input_vgg19,
+        rotation_range=best_params['rotation_range'],
+        width_shift_range=best_params['width_shift_range'],
+        height_shift_range=best_params['height_shift_range'],
+        horizontal_flip=best_params['horizontal_flip'],
+        vertical_flip=best_params['vertical_flip'],
+        zoom_range=[1 + best_params['zoom_range'], 1 - best_params['zoom_range']],
+        brightness_range=[1 - best_params['brightness_range'], 1 + best_params['brightness_range']] if best_params['brightness_range'] != 0 else None
+    )
+    
+    val_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
+    
+    test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
+
+    classes = {'2SKC_No_Glaucoma': 0, '2SKA_Suspected_Glaucoma': 1}
+
+    train_generator = train_datagen.flow_from_directory(
+        train_path,
+        target_size=(224, 224),
+        class_mode='binary',
+        classes = classes
+    )
+    
+    validation_generator = val_datagen.flow_from_directory(
+        valid_path,
+        target_size=(224, 224),
+        class_mode='binary',
+        classes = classes
+    )
+    
+    test_generator = test_datagen.flow_from_directory(
+        test_path,
+        target_size=(224, 224),
+        class_mode='binary',
+        classes = classes
+    )
+    
+    print("train_generator.class_indices : ", train_generator.class_indices)
+    print("validation_generator.class_indices : ", validation_generator.class_indices)
+    print("test_generator.class_indices : ", test_generator.class_indices)
+    
+    return train_generator, validation_generator, test_generator
 
 def fine_tune_model(train_path, valid_path, test_path, output_path, best_params, model_name, original_model_path):
     set_seeds()
@@ -105,3 +174,5 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     main(args.train_path, args.valid_path, args.test_path, args.output_path, args.best_hyperparameters_json_path, args.model_name, args.original_model_path)
+
+
