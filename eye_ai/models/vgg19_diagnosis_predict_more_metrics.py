@@ -71,7 +71,7 @@ def prediction(model_path, cropped_image_path, output_dir, best_hyperparameters_
     
     graded_test_datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
 
-    classes = {'690J': 0, '692J': 1}
+    classes = {'2SKC_No_Glaucoma': 0, '2SKA_Suspected_Glaucoma': 1}
     model = tf.keras.models.load_model(model_path, custom_objects={'f1_score_normal': f1_score_normal})
 
     graded_test_generator = graded_test_datagen.flow_from_directory(
