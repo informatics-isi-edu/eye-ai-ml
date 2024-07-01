@@ -152,8 +152,8 @@ def fine_tune_model(train_path, valid_path, test_path, output_path, best_params,
         workers=num_workers,
         use_multiprocessing=True,
         callbacks=[
-            EarlyStopping(monitor='val_loss', patience=5, verbose=1),
-            EarlyStopping(monitor='val_roc_auc_score', mode='max', verbose=1, patience=5, restore_best_weights=True),
+            EarlyStopping(monitor='val_loss', patience=10, verbose=1),
+            EarlyStopping(monitor='val_roc_auc_score', mode='max', verbose=1, patience=8, restore_best_weights=True),
         ],
     )
 
