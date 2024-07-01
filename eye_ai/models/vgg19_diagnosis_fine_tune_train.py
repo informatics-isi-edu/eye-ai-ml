@@ -99,9 +99,28 @@ def fine_tune_model(train_path, valid_path, test_path, output_path, best_params,
     # Load the previously trained model
     model = load_model(original_model_path, custom_objects={'f1_score_normal': f1_score_normal})
     
-    # Unfreeze all layers for fine-tuning
-    for layer in model.layers:
+    
+    # Get the VGG19 base model
+    base_model = model.get_layer('vgg19')  # Using 'vgg19' as the layer name
+    
+    # Set the VGG19 base model layers up to a certain point to non-trainable
+    for layer in base_model.layers[:best_params['fine_tune_at']]:
+        layer.trainable = False
+    for layer in base_model.layers[best_params['fine_tune_at']:]:
         layer.trainable = True
+    
+    # Set trainability for layers after the base model
+    for layer in model.layers:
+        if layer.name not in ['vgg19']:  # This excludes the base VGG19 model
+            layer.trainable = True
+    
+    # Print the trainable status of the layers
+    for layer in model.layers:
+        print(f"Layer {layer.name}: trainable = {layer.trainable}")
+        if layer.name == 'vgg19':  # For the VGG19 base model
+            for inner_layer in layer.layers:
+                print(f"  Inner Layer {inner_layer.name}: trainable = {inner_layer.trainable}")
+
     
     # Compile model with a lower learning rate
     fine_tuning_lr = best_params['fine_tuning_learning_rate_adam'] * 0.1  # Reduce learning rate
@@ -144,7 +163,7 @@ def fine_tune_model(train_path, valid_path, test_path, output_path, best_params,
     print(f"Model Eval results: {results}")
 
     # Save the fine-tuned model
-    fine_tuned_model_name = f'{model_name}_fine_tuned'
+    fine_tuned_model_name = f'{model_name}'
     model.save(os.path.join(output_path, f'{fine_tuned_model_name}.h5'))
     
     # Save training history
