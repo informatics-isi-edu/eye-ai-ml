@@ -45,12 +45,11 @@ def plot_confusion_matrix(y_true, y_pred, classes, output_path, model_name):
     plt.close()
     logging.info(f"Confusion matrix saved as {model_name}_confusion_matrix.png (300 DPI)")
 
-def plot_roc_curves(y_true_bin, y_pred, classes, output_path, model_name):
+def plot_roc_curves(y_true, y_pred, classes, output_path, model_name):
     plt.figure(figsize=(10, 8), dpi=300)
-    for i, class_name in enumerate(classes):
-        fpr, tpr, _ = roc_curve(y_true_bin[:, i], y_pred[:, i])
-        roc_auc = roc_auc_score(y_true_bin[:, i], y_pred[:, i])
-        plt.plot(fpr, tpr, label=f'{class_name} (AUC = {roc_auc:.2f})')
+    fpr, tpr, _ = roc_curve(y_true, y_pred)
+    roc_auc = roc_auc_score(y_true, y_pred)
+    plt.plot(fpr, tpr, label=f'ROC curve (AUC = {roc_auc:.2f})')
     
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlim([0.0, 1.0])
@@ -59,9 +58,9 @@ def plot_roc_curves(y_true_bin, y_pred, classes, output_path, model_name):
     plt.ylabel('True Positive Rate')
     plt.title(f'Receiver Operating Characteristic (ROC) Curve - {model_name}')
     plt.legend(loc="lower right")
-    plt.savefig(Path(output_path) / f'{model_name}_roc_curves.png', dpi=300)
+    plt.savefig(Path(output_path) / f'{model_name}_roc_curve.png', dpi=300)
     plt.close()
-    logging.info(f"ROC curves saved as {model_name}_roc_curves.png (300 DPI)")
+    logging.info(f"ROC curve saved as {model_name}_roc_curve.png (300 DPI)")
 
 def prediction(model_path, cropped_image_path, output_dir, best_hyperparameters_json_path):
     with open(best_hyperparameters_json_path, 'r') as file:
@@ -85,7 +84,7 @@ def prediction(model_path, cropped_image_path, output_dir, best_hyperparameters_
 
     filenames = graded_test_generator.filenames
     y_true = graded_test_generator.classes
-    y_pred = model.predict(graded_test_generator)
+    y_pred = model.predict(graded_test_generator).flatten()  # Flatten the predictions
     y_pred_classes = (y_pred > 0.5).astype(int)
 
     # Calculate metrics
@@ -120,9 +119,8 @@ def prediction(model_path, cropped_image_path, output_dir, best_hyperparameters_
     # Plot confusion matrix
     plot_confusion_matrix(y_true, y_pred_classes, classes.keys(), output_dir, model_name)
 
-    # Plot ROC curves
-    y_true_bin = label_binarize(y_true, classes=[0, 1])
-    plot_roc_curves(y_true_bin, y_pred, classes.keys(), output_dir, model_name)
+    # Plot ROC curve
+    plot_roc_curves(y_true, y_pred, classes.keys(), output_dir, model_name)
 
     # Write to CSV file
     output_dir = Path(output_dir)
@@ -133,7 +131,7 @@ def prediction(model_path, cropped_image_path, output_dir, best_hyperparameters_
         writer.writerow(['Filename', 'True Label', 'Prediction', 'Probability Score'])
 
         for i in range(len(filenames)):
-            writer.writerow([filenames[i], y_true[i], y_pred_classes[i], y_pred[i][0]])
+            writer.writerow([filenames[i], y_true[i], y_pred_classes[i], y_pred[i]])
 
     logging.info(f"Data saved to {csv_filename}")
 
