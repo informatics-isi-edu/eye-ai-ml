@@ -16,6 +16,7 @@ import tensorflow as tf
 from tensorflow.keras.applications import VGG19
 from tensorflow.keras.layers import Dense, Dropout, Flatten, GlobalAveragePooling2D, BatchNormalization
 from tensorflow.keras.models import Model
+from tensorflow.keras.models import load_model
 from tensorflow.keras.optimizers import Adam, SGD, RMSprop
 from tensorflow.keras.losses import BinaryCrossentropy, Hinge, SquaredHinge, LogCosh
 from tensorflow.keras.metrics import AUC, Accuracy, Precision, Recall, BinaryAccuracy
