@@ -33,7 +33,8 @@ def predict_and_evaluate(model_path, image_path, output_dir, best_hyperparameter
     # Prepare the data generator
     datagen = ImageDataGenerator(preprocessing_function=preprocess_input_vgg19)
 
-    classes = {'692J': 0, '690J': 1}  # 692J: Bad, 690J: Good # predicting the probability of quality of being a good fundus image given a fundus image
+    classes = {'692J': 0, '690J': 1}  # 692J: Bad, 690J: Good
+    class_names = list(classes.keys())
     
     model = tf.keras.models.load_model(model_path, custom_objects={'f1_score_normal': f1_score_normal})
 
@@ -74,9 +75,9 @@ def predict_and_evaluate(model_path, image_path, output_dir, best_hyperparameter
     logging.info(f"ROC AUC: {roc_auc}")
 
     # Classification report
-    report = classification_report(y_true, y_pred_classes, target_names=classes.keys(), output_dict=True)
+    report = classification_report(y_true, y_pred_classes, target_names=class_names, output_dict=True)
     print("\nClassification Report:")
-    print(classification_report(y_true, y_pred_classes, target_names=classes.keys()))
+    print(classification_report(y_true, y_pred_classes, target_names=class_names))
     logging.info("Classification Report:")
     logging.info(json.dumps(report, indent=2))
 
@@ -87,7 +88,7 @@ def predict_and_evaluate(model_path, image_path, output_dir, best_hyperparameter
         writer = csv.writer(file)
         writer.writerow(['Filename', 'True Label', 'Prediction', 'Probability Score'])
         for i, filename in enumerate(generator.filenames):
-            writer.writerow([filename, classes[y_true[i]], classes[y_pred_classes[i][0]], y_pred[i][0]])
+            writer.writerow([filename, class_names[y_true[i]], class_names[y_pred_classes[i][0]], y_pred[i][0]])
 
     print("Predictions saved to quality_predictions.csv")
 
@@ -97,9 +98,9 @@ def predict_and_evaluate(model_path, image_path, output_dir, best_hyperparameter
     plt.imshow(cm, interpolation='nearest', cmap=plt.cm.Blues)
     plt.title('Confusion Matrix')
     plt.colorbar()
-    tick_marks = np.arange(len(classes))
-    plt.xticks(tick_marks, classes.keys(), rotation=45)
-    plt.yticks(tick_marks, classes.keys())
+    tick_marks = np.arange(len(class_names))
+    plt.xticks(tick_marks, class_names, rotation=45)
+    plt.yticks(tick_marks, class_names)
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
     for i in range(cm.shape[0]):
