@@ -5,6 +5,7 @@ import sys
 import os
 from pathlib import Path
 
+# The execution is operating out of a repo because there is a .git subdirectory
 repo_path = Path(__file__).parents[1]
 in_repo = (repo_path / Path(".git")).is_dir()
 setuptools_git_versioning = Path(sys.executable).parent / "setuptools-git-versioning"

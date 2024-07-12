@@ -1,12 +1,14 @@
-from typing import List, Callable
+import sys
 import xml.etree.ElementTree as ET
+from pathlib import Path, PurePath
+from typing import List, Callable, Optional
+
+import matplotlib.pyplot as plt
 import pandas as pd
 from PIL import Image
-from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException
-from pathlib import Path, PurePath
-import matplotlib.pyplot as plt
-from sklearn.metrics import classification_report, roc_auc_score, roc_curve
-import sys
+from sklearn.metrics import roc_curve
+
+from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException, FileUploadState, UploadState
 
 
 class EyeAIException(DerivaMLException):
@@ -231,8 +233,11 @@ class EyeAI(DerivaML):
         entities = pred_df.to_dict(orient='records')
         self._batch_insert(self.schema.Diagnosis,
                            [{'Execution': execution_rid, 'Diagnosis_Tag': diagtag_rid, **e} for e in entities])
-    
-    def insert_image_annotation(self, upload_result: dict, metadata: pd.DataFrame):
+
+    def insert_image_annotation(self,
+                                annotation_function: str,
+                                annotation_type: str,
+                                upload_result: dict[str, FileUploadState], metadata: pd.DataFrame) -> None:
         """
         Inserts image annotations into the catalog Image_Annotation table based on upload results and metadata.
 
@@ -243,22 +248,26 @@ class EyeAI(DerivaML):
         Returns:
         - None
         """
-        image_annot_entities = []
+
+        image_rids = []
+        asset_rids = []
+
         for annotation in upload_result.values():
-            if annotation["State"] == 0 and annotation["Result"] is not None:
-                rid = annotation["Result"].get("RID")
+            if annotation.state == UploadState.success and annotation.result is not None:
+                rid = annotation.result.get("RID")
                 if rid is not None:
-                    filename = annotation["Result"].get("Filename")
+                    filename = annotation.result.get("Filename")
                     cur = metadata[metadata['Saved SVG Name'] == filename]
                     image_rid = cur['Image RID'].iloc[0]
-                    annot_func = cur['Worked Image Cropping Function'].iloc[0]
-                    annot_func_rid = self.lookup_term(table_name="Annotation_Function", term_name=annot_func)
-                    annot_type_rid = self.lookup_term(table_name="Annotation_Type", term_name="Optic Nerve")
-                    image_annot_entities.append({'Annotation_Function': annot_func_rid,
-                                                 'Annotation_Type': annot_type_rid,
-                                                 'Image': image_rid,
-                                                 'Execution_Assets': rid})
-        self._batch_insert(self.schema.Image_Annotation, image_annot_entities)
+                    image_rids.append(image_rid)
+                    asset_rids.append(rid)
+        annot_func_rid = self.lookup_term(table_name="Annotation_Function", term_name=annotation_function)
+        annot_type_rid = self.lookup_term(table_name="Annotation_Type", term_name=annotation_type)
+        self.add_attributes(image_rids,
+                            asset_rids,
+                            [{'Annotation_Function': annot_func_rid,
+                              'Annotation_Type': annot_type_rid}] * len(image_rids)
+                            )
 
     def filter_angle_2(self, bag_path: str) -> PurePath:
         """
@@ -297,7 +306,8 @@ class EyeAI(DerivaML):
         bbox = (x_min, y_min, x_min + width, y_min + height)
         return bbox
 
-    def create_cropped_images(self, bag_path: str, output_dir: str, crop_to_eye: bool, exclude_list: List=[]) -> tuple:
+    def create_cropped_images(self, bag_path: str, output_dir: str, crop_to_eye: bool,
+                              exclude_list: Optional[list] = None) -> tuple:
         """
         Retrieves cropped images and saves them to the specified directory and seperated in two folders by class.
 
@@ -308,6 +318,9 @@ class EyeAI(DerivaML):
         Returns:
         - tuple: A tuple containing the path to the directory containing cropped images and the path to the output CSV file.
         """
+
+        if not exclude_list:
+            exclude_list = []
         cropped_path = Path(output_dir + "/Image_cropped")
         cropped_path_2SKC = Path(output_dir + "/Image_cropped/2SKC_No_Glaucoma/")
         cropped_path_2SKC.mkdir(parents=True, exist_ok=True)
@@ -315,7 +328,7 @@ class EyeAI(DerivaML):
         cropped_path_2SKA.mkdir(parents=True, exist_ok=True)
         svg_root_path = bag_path + '/data/assets/Image_Annotation/'
         image_root_path = bag_path + '/data/assets/Image/'
-        image_annot_df = pd.read_csv(bag_path+'/data/Image_Annotation.csv')
+        image_annot_df = pd.read_csv(bag_path + '/data/Image_Annotation.csv')
         image_df = pd.read_csv(bag_path + '/data/Image.csv')
         diagnosis = pd.read_csv(bag_path + '/data/Diagnosis.csv')
         raw_crop = self.lookup_term(table_name="Annotation_Function", term_name='Raw_Cropped_to_Eye')
@@ -339,7 +352,7 @@ class EyeAI(DerivaML):
                     image_annot_df.loc[index, 'Cropped Filename'] = 'Cropped_' + image_file_name
         output_csv = PurePath(self.working_dir, 'Cropped_Image.csv')
         image_annot_df.to_csv(output_csv)
-        return cropped_path, output_csv 
+        return cropped_path, output_csv
 
     def plot_roc(self, data: pd.DataFrame) -> Path:
         """
@@ -352,7 +365,7 @@ class EyeAI(DerivaML):
             Path: Path to the saved csv file of ROC plot values .
 
         """
-        output_path = self.execution_assets_path/Path("ROC")
+        output_path = self.execution_assets_path / Path("ROC")
         output_path.mkdir(parents=True, exist_ok=True)
         pred_result = pd.read_csv(data)
         y_true = pred_result['True Label']
@@ -372,21 +385,22 @@ class EyeAI(DerivaML):
 
     def compute_condition_label(self, icd10_asso: pd.DataFrame, icd10: pd.DataFrame) -> pd.DataFrame:
         icd_mapping = {
-        'H40.00*': 'GS',
-        'H40.01*': 'GS',
-        'H40.02*': 'GS',
-        'H40.03*': 'GS',
-        'H40.04*': 'GS',
-        'H40.05*': 'GS',
-        'H40.06*': 'GS',
-        'H40.10*': 'POAG', 
-        'H40.11*': 'POAG', 
-        'H40.12*': 'POAG', 
-        'H40.13*': 'POAG',
-        'H40.14*': 'POAG',
-        'H40.15*': 'POAG', 
-        'H40.2*': 'PACG'
+            'H40.00*': 'GS',
+            'H40.01*': 'GS',
+            'H40.02*': 'GS',
+            'H40.03*': 'GS',
+            'H40.04*': 'GS',
+            'H40.05*': 'GS',
+            'H40.06*': 'GS',
+            'H40.10*': 'POAG',
+            'H40.11*': 'POAG',
+            'H40.12*': 'POAG',
+            'H40.13*': 'POAG',
+            'H40.14*': 'POAG',
+            'H40.15*': 'POAG',
+            'H40.2*': 'PACG'
         }
+
         def map_icd_to_category(icd_code):
             for key, value in icd_mapping.items():
                 if icd_code.startswith(key[:-1]):
@@ -395,7 +409,8 @@ class EyeAI(DerivaML):
 
         # Apply the mapping
         icd10['Condition_Label'] = icd10['ICD10'].apply(map_icd_to_category)
-        combined = pd.merge(icd10_asso, icd10, left_on='ICD10_Eye', right_on='RID', how='left')[['Clinical_Records', 'Condition_Label']]
+        combined = pd.merge(icd10_asso, icd10, left_on='ICD10_Eye', right_on='RID', how='left')[
+            ['Clinical_Records', 'Condition_Label']]
         # Select severity
         priority = {'PACG': 1, 'POAG': 2, 'GS': 3, 'Other': 4}
         combined['Priority'] = combined['Condition_Label'].map(priority)
@@ -403,7 +418,7 @@ class EyeAI(DerivaML):
         combined_prior = combined.drop_duplicates(subset=['Clinical_Records'], keep='first')
         combined_prior = combined_prior.drop(columns=['Priority'])
         return combined_prior
-    
+
     def insert_condition_label(self, condition_label: pd.DataFrame):
         label_map = {e["Name"]: e["RID"] for e in self.schema.Condition_Label.entities()}
         condition_label.replace({"Condition_Label": label_map}, inplace=True)
@@ -414,18 +429,18 @@ class EyeAI(DerivaML):
                            [self.schema.Clinical_Records.Condition_Label])
 
     def extract_modality(self, data_path):
-        subject = pd.read_csv(data_path/'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        observation = pd.read_csv(data_path/'data/Observation.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        image = pd.read_csv(data_path/'data/Image.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        clinic = pd.read_csv(data_path/'data/Clinical_Records.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        observation_clinic_asso = pd.read_csv(data_path/'data/Observation_Clinic_Asso.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        icd10 = pd.read_csv(data_path/'data/Clinic_ICD10.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        icd10_asso = pd.read_csv(data_path/'data/Clinic_ICD_Asso.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        report = pd.read_csv(data_path/'data/Report.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        RNFL_OCR = pd.read_csv(data_path/'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        HVF_OCR = pd.read_csv(data_path/'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        subject = pd.read_csv(data_path / 'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        observation = pd.read_csv(data_path / 'data/Observation.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        image = pd.read_csv(data_path / 'data/Image.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        clinic = pd.read_csv(data_path / 'data/Clinical_Records.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        observation_clinic_asso = pd.read_csv(data_path / 'data/Observation_Clinic_Asso.csv').drop(
+            columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        icd10 = pd.read_csv(data_path / 'data/Clinic_ICD10.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        icd10_asso = pd.read_csv(data_path / 'data/Clinic_ICD_Asso.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        report = pd.read_csv(data_path / 'data/Report.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        RNFL_OCR = pd.read_csv(data_path / 'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        HVF_OCR = pd.read_csv(data_path / 'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
 
-        
         gender_vocab = self.list_vocabulary('Subject_Gender')[["RID", "Name"]].rename(
             columns={"RID": 'Subject_Gender', "Name": "Gender"})
         ethinicity_vocab = self.list_vocabulary('Subject_Ethnicity')[["RID", "Name"]].rename(
@@ -436,39 +451,44 @@ class EyeAI(DerivaML):
             columns={"RID": 'Image_Angle_Vocab', "Name": "Angle"})
         label_vocab = self.list_vocabulary('Condition_Label')[["RID", "Name"]].rename(
             columns={"RID": 'Condition_Label', "Name": "Label"})
-        
+
         subject = pd.merge(subject, gender_vocab, how="left", on='Subject_Gender')
         subject = pd.merge(subject, ethinicity_vocab, how="left", on='Subject_Ethnicity')
         subject = subject[['RID', 'Subject_ID', 'Gender', 'Ethnicity']]
 
         subject_observation = pd.merge(subject, observation, left_on='RID', right_on='Subject', how='left',
-                               suffixes=('_Subject', '_Observation')).drop(columns=['Subject'])
-        subject_obs_clinic = pd.merge(subject_observation, 
-                              observation_clinic_asso, 
-                              left_on= 'RID_Observation', 
-                              right_on='Observation', 
-                              how='left').drop(columns=['RID', 'Observation'])
-        subject_obs_clinic_data = pd.merge(subject_obs_clinic, 
-                                   clinic,
-                                   left_on='Clinical_Records', 
-                                   right_on='RID',
-                                   suffixes=("_Observation", "_Clinic"),
-                                   how='left').drop(columns = ['Clinical_Records']).rename(columns={'RID':'RID_Clinic'})
+                                       suffixes=('_Subject', '_Observation')).drop(columns=['Subject'])
+        subject_obs_clinic = pd.merge(subject_observation,
+                                      observation_clinic_asso,
+                                      left_on='RID_Observation',
+                                      right_on='Observation',
+                                      how='left').drop(columns=['RID', 'Observation'])
+        subject_obs_clinic_data = pd.merge(subject_obs_clinic,
+                                           clinic,
+                                           left_on='Clinical_Records',
+                                           right_on='RID',
+                                           suffixes=("_Observation", "_Clinic"),
+                                           how='left').drop(columns=['Clinical_Records']).rename(
+            columns={'RID': 'RID_Clinic'})
         # Clinical data
-        clinic = pd.merge(subject_obs_clinic_data, image_side_vocab, how="left", left_on='Powerform_Laterality', right_on='Image_Side_Vocab')
-        clinic = pd.merge(clinic, label_vocab, how="left", on='Condition_Label').drop(columns=['Powerform_Laterality', 'Image_Side_Vocab', 'Condition_Label'])
+        clinic = pd.merge(subject_obs_clinic_data, image_side_vocab, how="left", left_on='Powerform_Laterality',
+                          right_on='Image_Side_Vocab')
+        clinic = pd.merge(clinic, label_vocab, how="left", on='Condition_Label').drop(
+            columns=['Powerform_Laterality', 'Image_Side_Vocab', 'Condition_Label'])
 
         # Report_HVF
-        subject_observation_report = pd.merge(subject_observation, report, 
-                                      left_on='RID_Observation', 
-                                      right_on='Observation', 
-                                      suffixes=("subject_observation_for_HVF", "report")).drop(columns = ['Observation']).rename(columns={'RID':'RID_Report'})
-        HVF = pd.merge(subject_observation_report, HVF_OCR, 
-                       left_on='RID_Report', 
-                       right_on='Report', 
-                       suffixes=("_subject_observation_for_HVF_report", "_HVF_OCR"), 
+        subject_observation_report = pd.merge(subject_observation, report,
+                                              left_on='RID_Observation',
+                                              right_on='Observation',
+                                              suffixes=("subject_observation_for_HVF", "report")).drop(
+            columns=['Observation']).rename(columns={'RID': 'RID_Report'})
+        HVF = pd.merge(subject_observation_report, HVF_OCR,
+                       left_on='RID_Report',
+                       right_on='Report',
+                       suffixes=("_subject_observation_for_HVF_report", "_HVF_OCR"),
                        how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['Report'])
         HVF = pd.merge(HVF, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+
         def select_24_2(HVF):
             HVF_clean = HVF.dropna(subset=['RID_HVF_OCR'])
             priority = {'24-2': 1, '10-2': 2, '30-2': 3}
@@ -477,13 +497,14 @@ class EyeAI(DerivaML):
             result = HVF_sorted.groupby('RID_Observation').first().reset_index()
             result = result.drop(columns=['priority'])
             return result
+
         HVF = select_24_2(HVF)
 
         # Report_RNFL
-        RNFL = pd.merge(subject_observation_report, RNFL_OCR, 
-                        left_on='RID_Report', 
-                        right_on='Report', 
-                        suffixes=("_subject_observation_for_RNFL_report", "_RNFL_OCR"), 
+        RNFL = pd.merge(subject_observation_report, RNFL_OCR,
+                        left_on='RID_Report',
+                        right_on='Report',
+                        suffixes=("_subject_observation_for_RNFL_report", "_RNFL_OCR"),
                         how='left').rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['Report'])
         RNFL = pd.merge(RNFL, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
 
@@ -492,29 +513,34 @@ class EyeAI(DerivaML):
             idx = RNFL_clean.groupby(['RID_Observation', 'Side'])['Signal_Strength'].idxmax()
             result = RNFL_clean.loc[idx]
             return result
+
         RNFL = highest_signal_strength(RNFL)
         # Image
-        image = pd.merge(subject_observation, image, 
-                 left_on='RID_Observation', 
-                 right_on='Observation', 
-                 suffixes=("_subject_observation_for_image", 
-                           "_Image")).rename(columns={'RID': 'RID_Image'}).drop(columns=['Observation'])
+        image = pd.merge(subject_observation, image,
+                         left_on='RID_Observation',
+                         right_on='Observation',
+                         suffixes=("_subject_observation_for_image",
+                                   "_Image")).rename(columns={'RID': 'RID_Image'}).drop(columns=['Observation'])
         image = pd.merge(image, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
-        image = pd.merge(image, image_angle_vocab, how="left", on='Image_Angle_Vocab').drop(columns=['Image_Angle_Vocab'])
+        image = pd.merge(image, image_angle_vocab, how="left", on='Image_Angle_Vocab').drop(
+            columns=['Image_Angle_Vocab'])
 
         # Select the observation according fundus date of encounter
-        fundus = image[['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation', 'Observation_ID', 'Date_of_Encounter']].drop_duplicates()
+        fundus = image[['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation', 'Observation_ID',
+                        'Date_of_Encounter']].drop_duplicates()
+
         def closest_to_fundus(report, fundus):
             report['Date_of_Encounter'] = pd.to_datetime(report['Date_of_Encounter'])
             fundus['Date_of_Encounter'] = pd.to_datetime(fundus['Date_of_Encounter'])
             report_match = pd.DataFrame()
+
             def find_closest_date(target_date, dates):
                 return min(dates, key=lambda d: abs(d - target_date))
-        
+
             for idx, row in fundus.iterrows():
                 rid = row['RID_Subject']
                 target_date = row['Date_of_Encounter']
-        
+
                 for side in ['Left', 'Right']:
                     filtered_data = report[(report['RID_Subject'] == rid) & (report['Side'] == side)]
                     if not filtered_data.empty:
@@ -526,14 +552,15 @@ class EyeAI(DerivaML):
                             closest_entries = filtered_data[filtered_data['Date_of_Encounter'] == closest_date]
                             report_match = pd.concat([report_match, closest_entries])
             return report_match
-            
+
         HVF_match = closest_to_fundus(HVF, fundus)
         RNFL_match = closest_to_fundus(RNFL, fundus)
-        clinic_match = pd.merge(fundus, clinic, how='left', on = 'RID_Observation', suffixes=("", "_Clinic"))[['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
-                                                                                                         'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
-                                                                                                         'Date_of_Encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
-                                                                                                         'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
-                                                                                                         'Clinical_ID', 'Side', 'Label']]
+        clinic_match = pd.merge(fundus, clinic, how='left', on='RID_Observation', suffixes=("", "_Clinic"))[
+            ['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
+             'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
+             'Date_of_Encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
+             'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
+             'Clinical_ID', 'Side', 'Label']]
 
         RNFL_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_RNFL'}, inplace=True)
         HVF_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_HVF'}, inplace=True)
@@ -561,6 +588,8 @@ class EyeAI(DerivaML):
         HVF.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
         Fundus.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
         multimodal_wide = pd.merge(Fundus, Clinic, how='left', on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity'])
-        multimodal_wide = pd.merge(multimodal_wide, HVF, how='left', on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
-        multimodal_wide = pd.merge(multimodal_wide, RNFL, how='left', on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
+        multimodal_wide = pd.merge(multimodal_wide, HVF, how='left',
+                                   on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
+        multimodal_wide = pd.merge(multimodal_wide, RNFL, how='left',
+                                   on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
         return multimodal_wide
