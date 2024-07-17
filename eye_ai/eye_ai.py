@@ -494,7 +494,7 @@ class EyeAI(DerivaML):
             priority = {'24-2': 1, '10-2': 2, '30-2': 3}
             HVF_clean['priority'] = HVF_clean['Field_Size'].map(priority)
             HVF_sorted = HVF_clean.sort_values(by=['RID_Observation', 'priority'])
-            result = HVF_sorted.groupby('RID_Observation').first().reset_index()
+            result = HVF_sorted.groupby(['RID_Observation', 'Side']).first().reset_index()
             result = result.drop(columns=['priority'])
             return result
 
