@@ -467,7 +467,7 @@ class EyeAI(DerivaML):
                                            clinic,
                                            left_on='Clinical_Records',
                                            right_on='RID',
-                                           suffixes=("_Observation", "_Clinic"),
+                                           suffixes=("_Observation",""),
                                            how='left').drop(columns=['Clinical_Records']).rename(
             columns={'RID': 'RID_Clinic'})
         # Clinical data
@@ -480,7 +480,7 @@ class EyeAI(DerivaML):
         subject_observation_report = pd.merge(subject_observation, report,
                                               left_on='RID_Observation',
                                               right_on='Observation',
-                                              suffixes=("subject_observation_for_HVF", "report")).drop(
+                                              suffixes=("subject_observation_for_HVF", "Report")).drop(
             columns=['Observation']).rename(columns={'RID': 'RID_Report'})
         HVF = pd.merge(subject_observation_report, HVF_OCR,
                        left_on='RID_Report',
@@ -535,7 +535,9 @@ class EyeAI(DerivaML):
             report_match = pd.DataFrame()
 
             def find_closest_date(target_date, dates):
-                return min(dates, key=lambda d: abs(d - target_date))
+                target_date = target_date.tz_localize(None) if target_date.tzinfo else target_date
+                dates_naive = dates.dt.tz_localize(None)
+                return min(dates_naive, key=lambda d: abs(d - target_date))
 
             for idx, row in fundus.iterrows():
                 rid = row['RID_Subject']
@@ -555,15 +557,19 @@ class EyeAI(DerivaML):
 
         HVF_match = closest_to_fundus(HVF, fundus)
         RNFL_match = closest_to_fundus(RNFL, fundus)
+        
+        # select clinic records by the date of encounter (on the fundus date of encounter)
+        # results in 2078 records from 1062 subjects
         clinic_match = pd.merge(fundus, clinic, how='left', on='RID_Observation', suffixes=("", "_Clinic"))[
             ['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
              'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
-             'Date_of_Encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
+             'Date_of_Encounter', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
              'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
              'Clinical_ID', 'Side', 'Label']]
 
         RNFL_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_RNFL'}, inplace=True)
         HVF_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_HVF'}, inplace=True)
+        clinic_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_Clinic'}, inplace=True)
         fundus.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_Fundus'}, inplace=True)
 
         # Save df
