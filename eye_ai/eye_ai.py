@@ -583,13 +583,26 @@ class EyeAI(DerivaML):
         RNFL = pd.read_csv(modality_df['RNFL'])
         Fundus = pd.read_csv(modality_df['Fundus'])
         HVF = pd.read_csv(modality_df['HVF'])
+        
+        rid_subjects = pd.concat([
+            Clinic['RID_Subject'],
+            RNFL['RID_Subject'],
+            Fundus['RID_Subject'],
+            HVF['RID_Subject']
+        ]).drop_duplicates().reset_index(drop=True)
+        sides = pd.DataFrame({'Side': ['Right', 'Left']})
+        expanded_subjects = rid_subjects.to_frame().merge(sides, how='cross')
+        
         Clinic.drop(columns=['RID_Observation', 'Observation_ID', 'Date_of_Encounter_Observation'], inplace=True)
         RNFL.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
         HVF.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
         Fundus.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
-        multimodal_wide = pd.merge(Fundus, Clinic, how='left', on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity'])
+        multimodal_wide = pd.merge(expanded_subjects, Fundus, how='left', on=['RID_Subject'])
+        multimodal_wide = pd.merge(multimodal_wide, Clinic, how='left', 
+                                   on=['RID_Subject', 'Side', 'Subject_ID', 'Gender', 'Ethnicity'])
         multimodal_wide = pd.merge(multimodal_wide, HVF, how='left',
                                    on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
         multimodal_wide = pd.merge(multimodal_wide, RNFL, how='left',
-                                   on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
+                                   on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'],
+                                   suffixes=('_HVF', '_RNFL'))
         return multimodal_wide
