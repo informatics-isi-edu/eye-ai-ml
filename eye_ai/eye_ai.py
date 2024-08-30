@@ -530,14 +530,12 @@ class EyeAI(DerivaML):
                         'Date_of_Encounter']].drop_duplicates()
 
         def closest_to_fundus(report, fundus):
-            report['Date_of_Encounter'] = pd.to_datetime(report['Date_of_Encounter'])
-            fundus['Date_of_Encounter'] = pd.to_datetime(fundus['Date_of_Encounter'])
+            report['Date_of_Encounter'] = pd.to_datetime(report['Date_of_Encounter']).dt.tz_localize(None)
+            fundus['Date_of_Encounter'] = pd.to_datetime(fundus['Date_of_Encounter']).dt.tz_localize(None)
             report_match = pd.DataFrame()
 
             def find_closest_date(target_date, dates):
-                target_date = target_date.tz_localize(None) if target_date.tzinfo else target_date
-                dates_naive = dates.dt.tz_localize(None)
-                return min(dates_naive, key=lambda d: abs(d - target_date))
+                return min(dates, key=lambda d: abs(d - target_date))
 
             for idx, row in fundus.iterrows():
                 rid = row['RID_Subject']
@@ -548,7 +546,7 @@ class EyeAI(DerivaML):
                     if not filtered_data.empty:
                         # Find the closest date entry
                         if sum(filtered_data['Date_of_Encounter'].isna()) > 0:
-                            report_match = pd.concat([report_match, filtered_data.iloc[0]])
+                            report_match = pd.concat([report_match, filtered_data.iloc[[0]]])
                         else:
                             closest_date = find_closest_date(target_date, filtered_data['Date_of_Encounter'])
                             closest_entries = filtered_data[filtered_data['Date_of_Encounter'] == closest_date]
