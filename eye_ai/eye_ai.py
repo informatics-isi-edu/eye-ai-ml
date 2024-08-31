@@ -5,6 +5,7 @@ from typing import List, Callable, Optional
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 from PIL import Image
 from sklearn.metrics import roc_curve
 
@@ -610,3 +611,61 @@ class EyeAI(DerivaML):
                                    on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'],
                                    suffixes=('_HVF', '_RNFL'))
         return multimodal_wide
+
+    def severity_analysis(self, data_path):
+        wide = self.multimodal_wide(data_path)
+
+        def compare_sides_severity(group, value_col, new_col, smaller=True): # helper method for severity_analysis
+            group[new_col] = group[new_col].astype(str)
+            
+            if len(group) == 2:  # Ensure there are both left and right sides
+                left = group[group['Side'] == 'Left']
+                right = group[group['Side'] == 'Right']
+                if not left.empty and not right.empty:
+                    left_value = left[value_col].values[0]
+                    right_value = right[value_col].values[0]
+                    if smaller:
+                        if left_value < right_value:
+                            group.loc[group['Side'] == 'Left', new_col] = 'Left'
+                            group.loc[group['Side'] == 'Right', new_col] = 'Left'
+                        elif left_value == right_value:
+                            group.loc[group['Side'] == 'Left', new_col] = 'Left/Right'
+                            group.loc[group['Side'] == 'Right', new_col] = 'Left/Right'
+                        else:
+                            group.loc[group['Side'] == 'Left', new_col] = 'Right'
+                            group.loc[group['Side'] == 'Right', new_col] = 'Right'
+                    else:
+                        # Larger value means more severe
+                        if left_value > right_value:
+                            group.loc[group['Side'] == 'Left', new_col] = 'Left'
+                            group.loc[group['Side'] == 'Right', new_col] = 'Left'
+                        elif left_value == right_value:
+                            group.loc[group['Side'] == 'Left', new_col] = 'Left/Right'
+                            group.loc[group['Side'] == 'Right', new_col] = 'Left/Right'
+                        else:
+                            group.loc[group['Side'] == 'Left', new_col] = 'Right'
+                            group.loc[group['Side'] == 'Right', new_col] = 'Right'
+            return group
+        
+        wide['RNFL_severe'] = np.nan
+        wide = wide.groupby('RID_Subject').apply(compare_sides_severity, value_col='Average_RNFL_Thickness(μm)', new_col='RNFL_severe', smaller=True).reset_index(drop=True)
+    
+        wide['HVF_severe'] = np.nan
+        wide = wide.groupby('RID_Subject').apply(compare_sides_severity, value_col='MD', new_col='HVF_severe', smaller=True).reset_index(drop=True)
+    
+        wide['CDR_severe'] = np.nan
+        wide = wide.groupby('RID_Subject').apply(compare_sides_severity, value_col='CDR', new_col='CDR_severe', smaller=False).reset_index(drop=True)
+
+        def check_severity(row):
+            # "Left/Right" and "Right" should return true, and "Left/Right" and "Left" should return true, but "Left" and "Right" should return false
+            # old method
+            # return row['RNFL_severe'] != row['HVF_severe'] or row['RNFL_severe'] != row['CDR_severe'] or row['HVF_severe'] != row['CDR_severe']
+            severities = [row['RNFL_severe'], row['HVF_severe'], row['CDR_severe']]
+            try:
+                return not (all(["Left" in l for l in severities]) or all(["Right" in l for l in severities]))
+            except Exception: # if row is all nan
+                return True
+        
+        wide['Severity_Mismatch'] = wide.apply(check_severity, axis=1)
+
+        return wide
