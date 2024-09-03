@@ -64,7 +64,9 @@ class EyeAI(DerivaML):
                          cache_dir,
                          working_dir,
                          sys.modules[globals()["__package__"]].__version__)
-        self.schema = self.pb.schemas['eye-ai']
+        # self.schema = self.pb.schemas['eye-ai']
+        self.ml_schema_instance = self.catalog.getPathBuilder().schemas[self.ml_schema]
+        self.domain_schema_instance = self.catalog.getPathBuilder().schemas[self.domain_schema]
 
     @staticmethod
     def _find_latest_observation(df: pd.DataFrame):
@@ -102,11 +104,16 @@ class EyeAI(DerivaML):
           based on the provided filters.
         """
         # Get references to tables to start path.
-        subject_dataset = self.schema.Subject_Dataset
-        subject = self.schema.Subject
-        image = self.schema.Image
-        observation = self.schema.Observation
-        diagnosis = self.schema.Diagnosis
+        subject_dataset = self.domain_schema_instance.Subject_Dataset
+        subject = self.domain_schema_instance.Subject
+        image = self.domain_schema_instance.Image
+        observation = self.domain_schema_instance.Observation
+        diagnosis = self.domain_schema_instance.Diagnosis
+        # subject_dataset = self.schema.Subject_Dataset
+        # subject = self.schema.Subject
+        # image = self.schema.Image
+        # observation = self.schema.Observation
+        # diagnosis = self.schema.Diagnosis
         path = subject_dataset.path
 
         results = path.filter(subject_dataset.Dataset == dataset_rid) \
@@ -205,8 +212,11 @@ class EyeAI(DerivaML):
         result = result.fillna('NaN')
         result.reset_index('Image', inplace=True)
 
-        image_quality_map = {e["Name"]: e["RID"] for e in self.schema.Image_Quality_Vocab.entities()}
-        diagnosis_map = {e["Name"]: e["RID"] for e in self.schema.Diagnosis_Image_Vocab.entities()}
+        # image_quality_map = {e["Name"]: e["RID"] for e in self.schema.Image_Quality_Vocab.entities()}
+        # diagnosis_map = {e["Name"]: e["RID"] for e in self.schema.Diagnosis_Image_Vocab.entities()}
+        image_quality_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Image_Quality_Vocab.entities()}
+        diagnosis_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Diagnosis_Image_Vocab.entities()}
+        
         result.replace({"Image_Quality": image_quality_map,
                         "Diagnosis": diagnosis_map}, inplace=True)
         result.rename({'Image_Quality': 'Image_Quality_Vocab', 'Diagnosis': 'Diagnosis_Vocab'}, axis=1, inplace=True)
@@ -232,7 +242,7 @@ class EyeAI(DerivaML):
         pred_df['Diagnosis_Vocab'] = pred_df['Prediction'].map(mapping)
         pred_df = pred_df[['Image', 'Diagnosis_Vocab']]
         entities = pred_df.to_dict(orient='records')
-        self._batch_insert(self.schema.Diagnosis,
+        self._batch_insert(self.domain_schema.Diagnosis,
                            [{'Execution': execution_rid, 'Diagnosis_Tag': diagtag_rid, **e} for e in entities])
 
     def insert_image_annotation(self,
@@ -421,13 +431,19 @@ class EyeAI(DerivaML):
         return combined_prior
 
     def insert_condition_label(self, condition_label: pd.DataFrame):
-        label_map = {e["Name"]: e["RID"] for e in self.schema.Condition_Label.entities()}
+
+        # label_map = {e["Name"]: e["RID"] for e in self.schema.Condition_Label.entities()}
+        label_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Condition_Label.entities()}
+
         condition_label.replace({"Condition_Label": label_map}, inplace=True)
         condition_label.rename(columns={'Clinical_Records': 'RID'}, inplace=True)
         entities = condition_label.to_dict(orient='records')
-        self._batch_update(self.schema.Clinical_Records,
+        # self._batch_update(self.schema.Clinical_Records,
+        #                    entities,
+        #                    [self.schema.Clinical_Records.Condition_Label])
+        self._batch_update(self.domain_schema_instance.Clinical_Records,
                            entities,
-                           [self.schema.Clinical_Records.Condition_Label])
+                           [self.domain_schema_instance.Clinical_Records.Condition_Label])
 
     def extract_modality(self, data_path):
         subject = pd.read_csv(data_path / 'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
