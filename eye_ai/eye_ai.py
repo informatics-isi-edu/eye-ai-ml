@@ -143,7 +143,7 @@ class EyeAI(DerivaML):
 
         # Show grader name
         grading_tags = ["2-35G0", "2-35RM", "2-4F74", "2-4F76"]
-        diag_tag_vocab = self.list_vocabulary('Diagnosis_Tag')[["RID", "Name"]]
+        diag_tag_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Tag'))[["RID", "Name"]]
         if diagnosis_tag_rid in grading_tags:
             image_frame = pd.merge(image_frame, self.user_list(), how="left", left_on='RCB', right_on='ID')
         else:
@@ -151,11 +151,11 @@ class EyeAI(DerivaML):
                 Full_Name=diag_tag_vocab[diag_tag_vocab['RID'] == diagnosis_tag_rid]["Name"].item())
 
         # Now flatten out Diagnosis_Vocab, Image_quality_Vocab, Image_Side_Vocab
-        diagnosis_vocab = self.list_vocabulary('Diagnosis_Image_Vocab')[["RID", "Name"]].rename(
+        diagnosis_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Image_Vocab'))[["RID", "Name"]].rename(
             columns={"RID": 'Diagnosis_Vocab', "Name": "Diagnosis"})
-        image_quality_vocab = self.list_vocabulary('Image_Quality_Vocab')[["RID", "Name"]].rename(
+        image_quality_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Quality_Vocab'))[["RID", "Name"]].rename(
             columns={"RID": 'Image_Quality_Vocab', "Name": "Image_Quality"})
-        image_side_vocab = self.list_vocabulary('Image_Side_Vocab')[["RID", "Name"]].rename(
+        image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
             columns={"RID": 'Image_Side_Vocab', "Name": "Image_Side"})
 
         image_frame = pd.merge(image_frame, diagnosis_vocab, how="left", on='Diagnosis_Vocab')
@@ -458,15 +458,15 @@ class EyeAI(DerivaML):
         RNFL_OCR = pd.read_csv(data_path / 'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
         HVF_OCR = pd.read_csv(data_path / 'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
 
-        gender_vocab = self.list_vocabulary('Subject_Gender')[["RID", "Name"]].rename(
+        gender_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Gender'))[["RID", "Name"]].rename(
             columns={"RID": 'Subject_Gender', "Name": "Gender"})
-        ethinicity_vocab = self.list_vocabulary('Subject_Ethnicity')[["RID", "Name"]].rename(
+        ethinicity_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Ethnicity'))[["RID", "Name"]].rename(
             columns={"RID": 'Subject_Ethnicity', "Name": "Ethnicity"})
-        image_side_vocab = self.list_vocabulary('Image_Side_Vocab')[["RID", "Name"]].rename(
+        image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
             columns={"RID": 'Image_Side_Vocab', "Name": "Side"})
-        image_angle_vocab = self.list_vocabulary('Image_Angle_Vocab')[["RID", "Name"]].rename(
+        image_angle_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Angle_Vocab'))[["RID", "Name"]].rename(
             columns={"RID": 'Image_Angle_Vocab', "Name": "Angle"})
-        label_vocab = self.list_vocabulary('Condition_Label')[["RID", "Name"]].rename(
+        label_vocab = pd.DataFrame(self.list_vocabulary_terms('Condition_Label'))[["RID", "Name"]].rename(
             columns={"RID": 'Condition_Label', "Name": "Label"})
 
         subject = pd.merge(subject, gender_vocab, how="left", on='Subject_Gender')
