@@ -51,7 +51,7 @@ class EyeAI(DerivaML):
     """
 
     def __init__(self, hostname: str = 'www.eye-ai.org', catalog_id: str = 'eye-ai',
-                 cache_dir: str = '/data', working_dir: str = None):
+                 cache_dir: str = '/data', working_dir: str = None, ml_schema: str = 'deriva-ml'):
         """
         Initializes the EyeAI object.
 
@@ -60,10 +60,11 @@ class EyeAI(DerivaML):
         - catalog_number (str): The catalog number or name.
         """
 
-        super().__init__(hostname, catalog_id, 'eye-ai',
-                         cache_dir,
-                         working_dir,
-                         sys.modules[globals()["__package__"]].__version__)
+        super().__init__(hostname = hostname, catalog_id = catalog_id, 
+                         domain_schema = 'eye-ai', project_name = 'eye-ai',
+                         cache_dir = cache_dir, working_dir = working_dir,
+                         model_version = sys.modules[globals()["__package__"]].__version__,
+                         ml_schema = ml_schema)
         # self.schema = self.pb.schemas['eye-ai']
         self.ml_schema_instance = self.catalog.getPathBuilder().schemas[self.ml_schema]
         self.domain_schema_instance = self.catalog.getPathBuilder().schemas[self.domain_schema]
