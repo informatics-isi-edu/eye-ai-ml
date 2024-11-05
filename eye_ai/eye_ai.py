@@ -92,13 +92,13 @@ class EyeAI(DerivaML):
                 df.drop(index, inplace=True)
         return df
 
-    def image_tall(self, dataset_rid: str, diagnosis_tag_rid: str) -> pd.DataFrame:
+    def image_tall(self, dataset_rid: str, diagnosis_tag: str) -> pd.DataFrame:
         """
         Retrieve tall-format image data based on provided dataset and diagnosis tag filters.
 
         Args:
         - dataset_rid (str): RID of the dataset to filter images.
-        - diagnosis_tag_rid (str): RID of the diagnosis tag used for further filtering.
+        - diagnosis_tag (str): Name of the diagnosis tag used for further filtering.
 
         Returns:
         - pd.DataFrame: DataFrame containing tall-format image data from fist observation of the subject,
@@ -110,20 +110,15 @@ class EyeAI(DerivaML):
         image = self.domain_schema_instance.Image
         observation = self.domain_schema_instance.Observation
         diagnosis = self.domain_schema_instance.Diagnosis
-        # subject_dataset = self.schema.Subject_Dataset
-        # subject = self.schema.Subject
-        # image = self.schema.Image
-        # observation = self.schema.Observation
-        # diagnosis = self.schema.Diagnosis
         path = subject_dataset.path
 
         results = path.filter(subject_dataset.Dataset == dataset_rid) \
             .link(subject, on=subject_dataset.Subject == subject.RID) \
             .link(observation, on=subject.RID == observation.Subject) \
             .link(image, on=observation.RID == image.Observation) \
-            .filter(image.Image_Angle_Vocab == '2SK6') \
+            .filter(image.Image_Angle == '2') \
             .link(diagnosis, on=image.RID == diagnosis.Image) \
-            .filter(diagnosis.Diagnosis_Tag == diagnosis_tag_rid)
+            .filter(diagnosis.Diagnosis_Tag == diagnosis_tag)
 
         results = results.attributes(
             results.Subject.RID.alias("Subject_RID"),
@@ -131,11 +126,11 @@ class EyeAI(DerivaML):
             results.Diagnosis.RID.alias("Diagnosis_RID"),
             results.Diagnosis.RCB,
             results.Diagnosis.Image,
-            results.Image.Image_Side_Vocab,
+            results.Image.Image_Side,
             results.Image.Filename,
-            results.Diagnosis.Diagnosis_Vocab,
+            results.Diagnosis.Diagnosis_Image,
             results.Diagnosis.column_definitions['Cup/Disk_Ratio'],
-            results.Diagnosis.Image_Quality_Vocab
+            results.Diagnosis.Image_Quality
         )
         image_frame = pd.DataFrame(results.fetch())
 
@@ -143,29 +138,30 @@ class EyeAI(DerivaML):
         image_frame = self._find_latest_observation(image_frame)
 
         # Show grader name
-        grading_tags = ["2-35G0", "2-35RM", "2-4F74", "2-4F76"]
-        diag_tag_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Tag'))[["RID", "Name"]]
-        if diagnosis_tag_rid in grading_tags:
+        # grading_tags = ["2-35G0", "2-35RM", "2-4F74", "2-4F76"]
+        grading_tags = ["GlaucomaSuspect", "AI_glaucomasuspect_test",
+                        "GlaucomaSuspect-Training", "GlaucomaSuspect-Validation"]
+        # diag_tag_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Tag'))[["RID", "Name"]]
+        if diagnosis_tag in grading_tags:
             image_frame = pd.merge(image_frame, self.user_list(), how="left", left_on='RCB', right_on='ID')
         else:
-            image_frame = image_frame.assign(
-                Full_Name=diag_tag_vocab[diag_tag_vocab['RID'] == diagnosis_tag_rid]["Name"].item())
+            image_frame = image_frame.assign(Full_Name=diagnosis_tag)
 
         # Now flatten out Diagnosis_Vocab, Image_quality_Vocab, Image_Side_Vocab
-        diagnosis_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Image_Vocab'))[["RID", "Name"]].rename(
-            columns={"RID": 'Diagnosis_Vocab', "Name": "Diagnosis"})
-        image_quality_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Quality_Vocab'))[["RID", "Name"]].rename(
-            columns={"RID": 'Image_Quality_Vocab', "Name": "Image_Quality"})
-        image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
-            columns={"RID": 'Image_Side_Vocab', "Name": "Image_Side"})
+        # diagnosis_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Image_Vocab'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Diagnosis_Vocab', "Name": "Diagnosis"})
+        # image_quality_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Quality_Vocab'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Image_Quality_Vocab', "Name": "Image_Quality"})
+        # image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Image_Side_Vocab', "Name": "Image_Side"})
 
-        image_frame = pd.merge(image_frame, diagnosis_vocab, how="left", on='Diagnosis_Vocab')
-        image_frame = pd.merge(image_frame, image_quality_vocab, how="left", on='Image_Quality_Vocab')
-        image_frame = pd.merge(image_frame, image_side_vocab, how="left", on='Image_Side_Vocab')
+        # image_frame = pd.merge(image_frame, diagnosis_vocab, how="left", on='Diagnosis_Vocab')
+        # image_frame = pd.merge(image_frame, image_quality_vocab, how="left", on='Image_Quality_Vocab')
+        # image_frame = pd.merge(image_frame, image_side_vocab, how="left", on='Image_Side_Vocab')
 
         return image_frame[
-            ['Subject_RID', 'Diagnosis_RID', 'Full_Name', 'Image', 'Image_Side', 'Diagnosis', 'Cup/Disk_Ratio',
-             'Image_Quality']]
+            ['Subject_RID', 'Diagnosis_RID', 'Full_Name', 'Image', 'Image_Side',
+             'Diagnosis', 'Cup/Disk_Ratio', 'Image_Quality']]
 
     def reshape_table(self, frames: List[pd.DataFrame], compare_value: str):
         """
@@ -213,38 +209,35 @@ class EyeAI(DerivaML):
         result = result.fillna('NaN')
         result.reset_index('Image', inplace=True)
 
-        # image_quality_map = {e["Name"]: e["RID"] for e in self.schema.Image_Quality_Vocab.entities()}
-        # diagnosis_map = {e["Name"]: e["RID"] for e in self.schema.Diagnosis_Image_Vocab.entities()}
-        image_quality_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Image_Quality_Vocab.entities()}
-        diagnosis_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Diagnosis_Image_Vocab.entities()}
-        
-        result.replace({"Image_Quality": image_quality_map,
-                        "Diagnosis": diagnosis_map}, inplace=True)
-        result.rename({'Image_Quality': 'Image_Quality_Vocab', 'Diagnosis': 'Diagnosis_Vocab'}, axis=1, inplace=True)
+        # image_quality_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Image_Quality_Vocab.entities()}
+        # diagnosis_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Diagnosis_Image_Vocab.entities()}
+        # result.replace({"Image_Quality": image_quality_map,
+        #                 "Diagnosis": diagnosis_map}, inplace=True)
+        # result.rename({'Image_Quality': 'I mage_Quality_Vocab', 'Diagnosis': 'Diagnosis_Vocab'}, axis=1, inplace=True)
 
         return result.to_dict(orient='records')
 
     def insert_new_diagnosis(self, pred_df: pd.DataFrame,
-                             diagtag_rid: str,
+                             diag_tag: str,
                              execution_rid: str):
         """
         Batch insert new diagnosis entities into the Diagnosis table.
 
         Args:
         - pred_df (pd.DataFrame): A dataframe with column "Image" containing the image rid and "Prediction" containing 0/1.
-        - diagtag_rid (str): RID of the diagnosis tag associated with the new entities.
+        - diag_tag (str): Name of the diagnosis tag associated with the new entities.
         - execution_rid (str): RID of the execution which generated the diagnosis.
         """
 
         glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "Suspected Glaucoma")
         no_glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "No Glaucoma")
 
-        mapping = {0: no_glaucoma, 1: glaucoma}
-        pred_df['Diagnosis_Vocab'] = pred_df['Prediction'].map(mapping)
-        pred_df = pred_df[['Image', 'Diagnosis_Vocab']]
+        mapping = {0: 'No Glaucoma', 1: 'Suspected Glaucoma'}
+        pred_df['Diagnosis_Image'] = pred_df['Prediction'].map(mapping)
+        pred_df = pred_df[['Image', 'Diagnosis_Image']]
         entities = pred_df.to_dict(orient='records')
         self._batch_insert(self.domain_schema.Diagnosis,
-                           [{'Execution': execution_rid, 'Diagnosis_Tag': diagtag_rid, **e} for e in entities])
+                           [{'Execution': execution_rid, 'Diagnosis_Tag': diag_tag, **e} for e in entities])
 
     def insert_image_annotation(self,
                                 annotation_function: str,
@@ -260,7 +253,7 @@ class EyeAI(DerivaML):
         Returns:
         - None
         """
-
+        # ToDo
         image_rids = []
         asset_rids = []
 
@@ -291,11 +284,11 @@ class EyeAI(DerivaML):
         Returns:
         - str: Path to the generated CSV file containing filtered images.
         """
-        Dataset_Path = PurePath(bag_path, 'data/Image.csv')
-        Dataset = pd.read_csv(Dataset_Path)
-        Dataset_Field_2 = Dataset[Dataset['Image_Angle_Vocab'] == "2SK6"]
+        dataset_path = PurePath(bag_path, 'data/Image.csv')
+        dataset = pd.read_csv(dataset_path)
+        dataset_field_2 = dataset[dataset['Image_Angle'] == "2"]
         angle2_csv_path = PurePath(self.working_dir, 'Field_2.csv')
-        Dataset_Field_2.to_csv(angle2_csv_path, index=False)
+        dataset_field_2.to_csv(angle2_csv_path, index=False)
         return angle2_csv_path
 
     def get_bounding_box(self, svg_path: str) -> tuple:
@@ -334,19 +327,19 @@ class EyeAI(DerivaML):
         if not exclude_list:
             exclude_list = []
         cropped_path = Path(output_dir + "/Image_cropped")
-        cropped_path_2SKC = Path(output_dir + "/Image_cropped/2SKC_No_Glaucoma/")
-        cropped_path_2SKC.mkdir(parents=True, exist_ok=True)
-        cropped_path_2SKA = Path(output_dir + "/Image_cropped/2SKA_Suspected_Glaucoma/")
-        cropped_path_2SKA.mkdir(parents=True, exist_ok=True)
+        cropped_path_no_glaucoma = Path(output_dir + "/Image_cropped/No_Glaucoma/")
+        cropped_path_no_glaucoma.mkdir(parents=True, exist_ok=True)
+        cropped_path_glaucoma = Path(output_dir + "/Image_cropped/Suspected_Glaucoma/")
+        cropped_path_glaucoma.mkdir(parents=True, exist_ok=True)
         svg_root_path = bag_path + '/data/assets/Image_Annotation/'
         image_root_path = bag_path + '/data/assets/Image/'
         image_annot_df = pd.read_csv(bag_path + '/data/Image_Annotation.csv')
         image_df = pd.read_csv(bag_path + '/data/Image.csv')
         diagnosis = pd.read_csv(bag_path + '/data/Diagnosis.csv')
-        raw_crop = self.lookup_term(table_name="Annotation_Function", term_name='Raw_Cropped_to_Eye')
+        # raw_crop = self.lookup_term(table_name="Annotation_Function", term_name='Raw_Cropped_to_Eye')
 
         for index, row in image_annot_df.iterrows():
-            if row['Annotation_Function'] != raw_crop or crop_to_eye:
+            if row['Annotation_Function'] != 'Raw_Cropped_to_Eye' or crop_to_eye:
                 image_rid = row['Image']
                 if image_rid not in exclude_list:
                     svg_path = svg_root_path + f'Cropped_{image_rid}.svg'
@@ -355,12 +348,12 @@ class EyeAI(DerivaML):
                     image_file_path = image_root_path + image_file_name
                     image = Image.open(image_file_path)
                     cropped_image = image.crop(bbox)
-                    diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'C1T4')
+                    diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
                                      & (diagnosis['Image'] == image_rid)]['Diagnosis_Vocab'].iloc[0]
-                    if diag == '2SKC':
-                        cropped_image.save(f'{str(cropped_path_2SKC)}/Cropped_{image_rid}.JPG')
+                    if diag == 'No Glaucoma':
+                        cropped_image.save(f'{str(cropped_path_no_glaucoma)}/Cropped_{image_rid}.JPG')
                     else:
-                        cropped_image.save(f'{str(cropped_path_2SKA)}/Cropped_{image_rid}.JPG')
+                        cropped_image.save(f'{str(cropped_path_glaucoma)}/Cropped_{image_rid}.JPG')
                     image_annot_df.loc[index, 'Cropped Filename'] = 'Cropped_' + image_file_name
         output_csv = PurePath(self.working_dir, 'Cropped_Image.csv')
         image_annot_df.to_csv(output_csv)
@@ -433,15 +426,11 @@ class EyeAI(DerivaML):
 
     def insert_condition_label(self, condition_label: pd.DataFrame):
 
-        # label_map = {e["Name"]: e["RID"] for e in self.schema.Condition_Label.entities()}
-        label_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Condition_Label.entities()}
+        # label_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Condition_Label.entities()}
 
-        condition_label.replace({"Condition_Label": label_map}, inplace=True)
+        # condition_label.replace({"Condition_Label": label_map}, inplace=True)
         condition_label.rename(columns={'Clinical_Records': 'RID'}, inplace=True)
         entities = condition_label.to_dict(orient='records')
-        # self._batch_update(self.schema.Clinical_Records,
-        #                    entities,
-        #                    [self.schema.Clinical_Records.Condition_Label])
         self._batch_update(self.domain_schema_instance.Clinical_Records,
                            entities,
                            [self.domain_schema_instance.Clinical_Records.Condition_Label])
@@ -459,20 +448,20 @@ class EyeAI(DerivaML):
         RNFL_OCR = pd.read_csv(data_path / 'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
         HVF_OCR = pd.read_csv(data_path / 'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
 
-        gender_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Gender'))[["RID", "Name"]].rename(
-            columns={"RID": 'Subject_Gender', "Name": "Gender"})
-        ethinicity_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Ethnicity'))[["RID", "Name"]].rename(
-            columns={"RID": 'Subject_Ethnicity', "Name": "Ethnicity"})
-        image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
-            columns={"RID": 'Image_Side_Vocab', "Name": "Side"})
-        image_angle_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Angle_Vocab'))[["RID", "Name"]].rename(
-            columns={"RID": 'Image_Angle_Vocab', "Name": "Angle"})
-        label_vocab = pd.DataFrame(self.list_vocabulary_terms('Condition_Label'))[["RID", "Name"]].rename(
-            columns={"RID": 'Condition_Label', "Name": "Label"})
+        # gender_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Gender'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Subject_Gender', "Name": "Gender"})
+        # ethinicity_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Ethnicity'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Subject_Ethnicity', "Name": "Ethnicity"})
+        # image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Image_Side_Vocab', "Name": "Side"})
+        # image_angle_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Angle_Vocab'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Image_Angle_Vocab', "Name": "Angle"})
+        # label_vocab = pd.DataFrame(self.list_vocabulary_terms('Condition_Label'))[["RID", "Name"]].rename(
+        #     columns={"RID": 'Condition_Label', "Name": "Label"})
 
-        subject = pd.merge(subject, gender_vocab, how="left", on='Subject_Gender')
-        subject = pd.merge(subject, ethinicity_vocab, how="left", on='Subject_Ethnicity')
-        subject = subject[['RID', 'Subject_ID', 'Gender', 'Ethnicity']]
+        # subject = pd.merge(subject, gender_vocab, how="left", on='Subject_Gender')
+        # subject = pd.merge(subject, ethinicity_vocab, how="left", on='Subject_Ethnicity')
+        # subject = subject[['RID', 'Subject_ID', 'Gender', 'Ethnicity']]
 
         subject_observation = pd.merge(subject, observation, left_on='RID', right_on='Subject', how='left',
                                        suffixes=('_Subject', '_Observation')).drop(columns=['Subject'])
@@ -486,13 +475,13 @@ class EyeAI(DerivaML):
                                            left_on='Clinical_Records',
                                            right_on='RID',
                                            suffixes=("_Observation",""),
-                                           how='left').drop(columns=['Clinical_Records']).rename(
-            columns={'RID': 'RID_Clinic'})
+                                           how='left').drop(
+            columns=['Clinical_Records']).rename(columns={'RID': 'RID_Clinic'})
         # Clinical data
-        clinic = pd.merge(subject_obs_clinic_data, image_side_vocab, how="left", left_on='Powerform_Laterality',
-                          right_on='Image_Side_Vocab')
-        clinic = pd.merge(clinic, label_vocab, how="left", on='Condition_Label').drop(
-            columns=['Powerform_Laterality', 'Image_Side_Vocab', 'Condition_Label'])
+        # clinic = pd.merge(subject_obs_clinic_data, image_side_vocab, how="left", left_on='Powerform_Laterality',
+        #                   right_on='Image_Side_Vocab')
+        # clinic = pd.merge(clinic, label_vocab, how="left", on='Condition_Label').drop(
+        #     columns=['Powerform_Laterality', 'Image_Side_Vocab', 'Condition_Label'])
 
         # Report_HVF
         subject_observation_report = pd.merge(subject_observation, report,
@@ -505,7 +494,7 @@ class EyeAI(DerivaML):
                        right_on='Report',
                        suffixes=("_subject_observation_for_HVF_report", "_HVF_OCR"),
                        how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['Report'])
-        HVF = pd.merge(HVF, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+        # HVF = pd.merge(HVF, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
 
         def select_24_2(HVF):
             HVF_clean = HVF.dropna(subset=['RID_HVF_OCR'])
@@ -524,7 +513,7 @@ class EyeAI(DerivaML):
                         right_on='Report',
                         suffixes=("_subject_observation_for_RNFL_report", "_RNFL_OCR"),
                         how='left').rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['Report'])
-        RNFL = pd.merge(RNFL, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+        # RNFL = pd.merge(RNFL, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
 
         def highest_signal_strength(RNFL):
             RNFL_clean = RNFL.dropna(subset=['RID_RNFL_OCR', 'Signal_Strength'])
@@ -539,9 +528,9 @@ class EyeAI(DerivaML):
                          right_on='Observation',
                          suffixes=("_subject_observation_for_image",
                                    "_Image")).rename(columns={'RID': 'RID_Image'}).drop(columns=['Observation'])
-        image = pd.merge(image, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
-        image = pd.merge(image, image_angle_vocab, how="left", on='Image_Angle_Vocab').drop(
-            columns=['Image_Angle_Vocab'])
+        # image = pd.merge(image, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+        # image = pd.merge(image, image_angle_vocab, how="left", on='Image_Angle_Vocab').drop(
+        #     columns=['Image_Angle_Vocab'])
 
         # Select the observation according fundus date of encounter
         fundus = image[['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation', 'Observation_ID',
