@@ -84,11 +84,11 @@ class EyeAI(DerivaML):
         latest_encounters = {}
         for index, row in df.iterrows():
             subject_rid = row['Subject_RID']
-            date_of_encounter = row['Date_of_Encounter']
+            date_of_encounter = row['date_of_encounter']
             if subject_rid not in latest_encounters or date_of_encounter > latest_encounters[subject_rid]:
                 latest_encounters[subject_rid] = date_of_encounter
         for index, row in df.iterrows():
-            if row['Date_of_Encounter'] != latest_encounters[row['Subject_RID']]:
+            if row['date_of_encounter'] != latest_encounters[row['Subject_RID']]:
                 df.drop(index, inplace=True)
         return df
 
@@ -122,7 +122,7 @@ class EyeAI(DerivaML):
 
         results = results.attributes(
             results.Subject.RID.alias("Subject_RID"),
-            results.Observation.Date_of_Encounter,
+            results.Observation.date_of_encounter,
             results.Diagnosis.RID.alias("Diagnosis_RID"),
             results.Diagnosis.RCB,
             results.Diagnosis.Image,
@@ -138,30 +138,17 @@ class EyeAI(DerivaML):
         image_frame = self._find_latest_observation(image_frame)
 
         # Show grader name
-        # grading_tags = ["2-35G0", "2-35RM", "2-4F74", "2-4F76"]
         grading_tags = ["GlaucomaSuspect", "AI_glaucomasuspect_test",
                         "GlaucomaSuspect-Training", "GlaucomaSuspect-Validation"]
         # diag_tag_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Tag'))[["RID", "Name"]]
         if diagnosis_tag in grading_tags:
-            image_frame = pd.merge(image_frame, self.user_list(), how="left", left_on='RCB', right_on='ID')
+            image_frame = pd.merge(image_frame, pd.DataFrame(self.user_list()), how="left", left_on='RCB', right_on='ID')
         else:
             image_frame = image_frame.assign(Full_Name=diagnosis_tag)
 
-        # Now flatten out Diagnosis_Vocab, Image_quality_Vocab, Image_Side_Vocab
-        # diagnosis_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Image_Vocab'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Diagnosis_Vocab', "Name": "Diagnosis"})
-        # image_quality_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Quality_Vocab'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Image_Quality_Vocab', "Name": "Image_Quality"})
-        # image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Image_Side_Vocab', "Name": "Image_Side"})
-
-        # image_frame = pd.merge(image_frame, diagnosis_vocab, how="left", on='Diagnosis_Vocab')
-        # image_frame = pd.merge(image_frame, image_quality_vocab, how="left", on='Image_Quality_Vocab')
-        # image_frame = pd.merge(image_frame, image_side_vocab, how="left", on='Image_Side_Vocab')
-
         return image_frame[
             ['Subject_RID', 'Diagnosis_RID', 'Full_Name', 'Image', 'Image_Side',
-             'Diagnosis', 'Cup/Disk_Ratio', 'Image_Quality']]
+             'Diagnosis_Image', 'Cup/Disk_Ratio', 'Image_Quality']]
 
     def reshape_table(self, frames: List[pd.DataFrame], compare_value: str):
         """
@@ -176,7 +163,7 @@ class EyeAI(DerivaML):
         """
         long = pd.concat(frames).reset_index()
         # change data type for control vocab table
-        cols = ['Image_Quality', 'Image_Side', 'Full_Name', 'Diagnosis']
+        cols = ['Image_Quality', 'Image_Side', 'Full_Name', 'Diagnosis_Image']
         for c in cols:
             long[c] = long[c].astype('category')
         wide = pd.pivot(long, index=['Image', 'Image_Side', 'Subject_RID'], columns='Full_Name',
@@ -203,17 +190,11 @@ class EyeAI(DerivaML):
         """
 
         result = df.groupby("Image").agg({"Cup/Disk_Ratio": cdr_func,
-                                          "Diagnosis": diag_func,
+                                          "Diagnosis_Image": diag_func,
                                           "Image_Quality": image_quality_func})
         result = result.round({'Cup/Disk_Ratio': 4})
         result = result.fillna('NaN')
         result.reset_index('Image', inplace=True)
-
-        # image_quality_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Image_Quality_Vocab.entities()}
-        # diagnosis_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Diagnosis_Image_Vocab.entities()}
-        # result.replace({"Image_Quality": image_quality_map,
-        #                 "Diagnosis": diagnosis_map}, inplace=True)
-        # result.rename({'Image_Quality': 'I mage_Quality_Vocab', 'Diagnosis': 'Diagnosis_Vocab'}, axis=1, inplace=True)
 
         return result.to_dict(orient='records')
 
