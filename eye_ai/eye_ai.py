@@ -3,6 +3,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path, PurePath
 from typing import List, Callable, Optional
 
+from itertools import islice
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -369,7 +370,7 @@ class EyeAI(DerivaML):
 
         return roc_csv_path
 
-    def compute_condition_label(self, icd10_asso: pd.DataFrame, icd10: pd.DataFrame) -> pd.DataFrame:
+    def compute_condition_label(self, icd10_asso: pd.DataFrame) -> pd.DataFrame:
         icd_mapping = {
             'H40.00*': 'GS',
             'H40.01*': 'GS',
@@ -394,17 +395,31 @@ class EyeAI(DerivaML):
             return 'Other'
 
         # Apply the mapping
-        icd10['Condition_Label'] = icd10['ICD10'].apply(map_icd_to_category)
-        combined = pd.merge(icd10_asso, icd10, left_on='ICD10_Eye', right_on='RID', how='left')[
-            ['Clinical_Records', 'Condition_Label']]
+        icd10_asso['Condition_Label'] = icd10_asso['ICD10_Eye'].apply(map_icd_to_category)
         # Select severity
         priority = {'PACG': 1, 'POAG': 2, 'GS': 3, 'Other': 4}
-        combined['Priority'] = combined['Condition_Label'].map(priority)
-        combined = combined.sort_values(by=['Clinical_Records', 'Priority'])
-        combined_prior = combined.drop_duplicates(subset=['Clinical_Records'], keep='first')
-        combined_prior = combined_prior.drop(columns=['Priority'])
+        icd10_asso['Priority'] = icd10_asso['Condition_Label'].map(priority)
+        icd10_asso = icd10_asso.sort_values(by=['Clinical_Records', 'Priority'])
+        combined_prior = icd10_asso.drop_duplicates(subset=['Clinical_Records'], keep='first')
+        combined_prior = combined_prior.drop(columns=['RID', 'ICD10_Eye', 'Priority'])
         return combined_prior
 
+    def _batch_update(self, table, entities):
+        """
+        Batch update entities in a table.
+
+        Args:
+        - table (datapath._TableWrapper): Table wrapper object.
+        - entities (Sequence[dict]): Sequence of entity dictionaries to update, must include RID.
+        - update_cols (List[datapath._ColumnWrapper]): List of columns to update.
+
+        """
+
+        it = iter(entities)
+        while chunk := list(islice(it, 2000)):
+            columns = [table.columns[c] for e in chunk for c in e.keys() if c != "RID"]
+            table.update(chunk, [table.RID], columns)
+            
     def insert_condition_label(self, condition_label: pd.DataFrame):
 
         # label_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Condition_Label.entities()}
@@ -412,9 +427,7 @@ class EyeAI(DerivaML):
         # condition_label.replace({"Condition_Label": label_map}, inplace=True)
         condition_label.rename(columns={'Clinical_Records': 'RID'}, inplace=True)
         entities = condition_label.to_dict(orient='records')
-        self._batch_update(self.domain_schema_instance.Clinical_Records,
-                           entities,
-                           [self.domain_schema_instance.Clinical_Records.Condition_Label])
+        self._batch_update(self.domain_schema_instance.Clinical_Records, entities)
 
     def extract_modality(self, data_path):
         subject = pd.read_csv(data_path / 'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
