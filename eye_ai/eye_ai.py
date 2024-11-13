@@ -562,13 +562,12 @@ class EyeAI(DerivaML):
         clinic_match = pd.merge(fundus, clinic, how='left', on='RID_Observation', suffixes=("", "_Clinic"))[
             ['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
              'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
-             'Date_of_Encounter', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
+             'Date_of_Encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
              'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
              'Clinical_ID', 'Side', 'Label']]
 
         RNFL_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_RNFL'}, inplace=True)
         HVF_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_HVF'}, inplace=True)
-        clinic_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_Clinic'}, inplace=True)
         fundus.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_Fundus'}, inplace=True)
 
         # Save df
