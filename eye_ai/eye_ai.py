@@ -64,7 +64,6 @@ class EyeAI(DerivaML):
                          cache_dir,
                          working_dir,
                          sys.modules[globals()["__package__"]].__version__)
-        self.schema = self.pb.schemas['eye-ai']
 
     @staticmethod
     def _find_latest_observation(df: pd.DataFrame):
@@ -102,11 +101,12 @@ class EyeAI(DerivaML):
           based on the provided filters.
         """
         # Get references to tables to start path.
-        subject_dataset = self.schema.Subject_Dataset
-        subject = self.schema.Subject
-        image = self.schema.Image
-        observation = self.schema.Observation
-        diagnosis = self.schema.Diagnosis
+        domain_schema = self.domain_schema
+        subject_dataset = domain_schema.Subject_Dataset
+        subject = domain_schema.Subject
+        image = domain_schema.Image
+        observation = domain_schema.Observation
+        diagnosis = domain_schema.Diagnosis
         path = subject_dataset.path
 
         results = path.filter(subject_dataset.Dataset == dataset_rid) \
@@ -205,8 +205,9 @@ class EyeAI(DerivaML):
         result = result.fillna('NaN')
         result.reset_index('Image', inplace=True)
 
-        image_quality_map = {e["Name"]: e["RID"] for e in self.schema.Image_Quality_Vocab.entities()}
-        diagnosis_map = {e["Name"]: e["RID"] for e in self.schema.Diagnosis_Image_Vocab.entities()}
+        domain_schema = self.domain_schema
+        image_quality_map = {e["Name"]: e["RID"] for e in domain_schema.Image_Quality_Vocab.entities()}
+        diagnosis_map = {e["Name"]: e["RID"] for e in domain_schema.Diagnosis_Image_Vocab.entities()}
         result.replace({"Image_Quality": image_quality_map,
                         "Diagnosis": diagnosis_map}, inplace=True)
         result.rename({'Image_Quality': 'Image_Quality_Vocab', 'Diagnosis': 'Diagnosis_Vocab'}, axis=1, inplace=True)
