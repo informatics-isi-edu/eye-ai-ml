@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 from PIL import Image
 from sklearn.metrics import roc_curve
+from sklearn import preprocessing
 
 from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException, FileUploadState, UploadState
 
@@ -669,3 +670,84 @@ class EyeAI(DerivaML):
         wide['Severity_Mismatch'] = wide.apply(check_severity, axis=1)
 
         return wide
+
+    def transform_data(multimodal_wide, fx_cols, y_method="all_glaucoma"):
+    """
+        Transforms multimodal data to create X_transformed and y as 0 and 1's; to apply to wide_train and wide_test
+        Args:
+            - y_method: "all_glaucoma" (Glaucoma=1, GS=0), "urgent_glaucoma" (MD<=-6 = 1, GS=0)
+    """
+        ### drop rows missing label (ie no label for POAG vs PACG vs GS)
+        multimodal_wide = multimodal_wide.dropna(subset=['Label'])
+        # drop rows where label is "Other" (should only be PACG, POAG, or GS)
+        allowed_labels = ["PACG", "POAG", "GS"]
+        multimodal_wide = multimodal_wide[multimodal_wide['Label'].isin(allowed_labels)]
+    
+        X = multimodal_wide[fx_cols] # Features
+    
+        ### GHT: reformat as "Outside Normal Limits", "Within Normal Limits", "Borderline", "Other"
+        if "GHT" in fx_cols:
+            GHT_categories = ["Outside Normal Limits", "Within Normal Limits", "Borderline"]
+            X.loc[~X['GHT'].isin(GHT_categories), 'GHT'] = np.nan # alt: 'Other'; I did np.nan bc I feel like it makes more sense to drop this variable
+    
+        ### Ethnicity: reformat so that Multi-racial, Other, and ethnicity not specified are combined as Other
+        if "Ethnicity" in fx_cols:
+            eth_categories = ["African Descent", "Asian", "Caucasian", "Latin American"]
+            X.loc[~X['Ethnicity'].isin(eth_categories), 'Ethnicity'] = 'Other'
+            
+        ### categorical data: encode using OneHotEncoder
+        from feature_engine.encoding import OneHotEncoder
+        categorical_vars = list(set(fx_cols) & set(['Gender', 'Ethnicity', 'GHT']))  # cateogorical vars that exist
+    
+        if len(categorical_vars)>0: 
+            # replace NaN with category "Unknown", then delete this column from one-hot encoding later
+            for var in categorical_vars:
+                X[var] = X[var].fillna("Unknown")
+            
+            encoder = OneHotEncoder(variables = categorical_vars)
+            X_transformed = encoder.fit_transform(X)
+    
+            # delete Unknown columns
+            X_transformed.drop(list(X_transformed.filter(regex='Unknown')), axis=1, inplace=True)
+    
+            ### sort categorical encoded columns so that they're in alphabetical order
+            def sort_cols(X, var):
+                # Select the subset of columns to sort
+                subset_columns = [col for col in X.columns if col.startswith(var)]
+                # Sort the subset of columns alphabetically
+                sorted_columns = sorted(subset_columns)
+                # Reorder the DataFrame based on the sorted columns
+                sorted_df = X[[col for col in X.columns if col not in subset_columns] + sorted_columns]
+                return sorted_df
+            for var in categorical_vars:
+                X_transformed = sort_cols(X_transformed, var)
+    
+        else:
+            print("No categorical variables")
+            X_transformed=X
+    
+        ### format numerical data
+        # VFI
+        if 'VFI' in fx_cols:
+            X_transformed['VFI'] = X_transformed['VFI'].replace('Off', np.nan) # replace "Off" with nan
+            def convert_percent(x):
+                if pd.isnull(x):
+                    return np.nan
+                return float(x.strip('%'))/100
+            X_transformed['VFI'] = X_transformed['VFI'].map(convert_percent)
+    
+        ### transform y
+        if y_method=="all_glaucoma":
+            y = multimodal_wide.Label # Target variable
+            # combine PACG and POAG as glaucoma
+            y = y.replace(['POAG', 'PACG'], 'Glaucoma')
+        elif y_method=="urgent_glaucoma":
+            y = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
+        else:
+            print("Not a valid y method")
+        # convert to 0 and 1
+        label_encoder = preprocessing.LabelEncoder()
+        y[:] = label_encoder.fit_transform(y) # fit_transform combines fit and transform
+        y = y.astype(int)
+    
+        return X_transformed, y
