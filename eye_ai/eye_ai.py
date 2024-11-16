@@ -671,7 +671,7 @@ class EyeAI(DerivaML):
 
         return wide
 
-    def transform_data(multimodal_wide, fx_cols, y_method="all_glaucoma"):
+    def transform_data(self, multimodal_wide, fx_cols, y_method="all_glaucoma"):
     """
         Transforms multimodal data to create X_transformed and y as 0 and 1's; to apply to wide_train and wide_test
         Args:
