@@ -1039,3 +1039,130 @@ class EyeAI(DerivaML):
             plt.legend(loc=4)
             plt.show()
         return fpr, tpr, auc_formatted, optimal_idx, optimal_threshold
+
+    #####Multiple Imputation Logistic Regression analysis methods#####
+    ### After performing logistic regression on each imputed dataset, pool the results using Rubin’s rules to obtain a single set of estimates.
+    # print model coefficients, ORs, p-values
+    def model_summary_mice(self, logreg_models, Xtrain_finals):
+        print("Training set: %i" % len(Xtrain_finals[0]))
+        
+        # Extract coefficients and standard errors
+        coefs = np.array([model.coef_[0] for model in logreg_models])
+        ors = np.exp(coefs)
+        intercepts = np.array([model.intercept_[0] for model in logreg_models])
+        p_values = np.array([logit_pvalue(model, Xtrain_finals[i]) for i, model in enumerate(logreg_models)])
+        
+        # Calculate pooled estimates
+        pooled_coefs = np.mean(coefs, axis=0)
+        pooled_ors = np.mean(ors, axis=0)
+        pooled_intercept = np.mean(intercepts)
+        # I think this calculates SES between the imputed datasets
+        pooled_ses = np.sqrt(np.mean(coefs**2, axis=0) + np.var(coefs, axis=0, ddof=1) * (1 + 1/len(logreg_models)))
+    
+        pooled_p_values = np.mean(p_values, axis=0)
+        
+        # Display pooled results
+        results = pd.DataFrame({
+            'Coefficient': format_dec(np.append(pooled_intercept, pooled_coefs)),
+            'Odds Ratio': format_dec(np.append(np.exp(pooled_intercept), pooled_ors)),
+            'Standard Error': format_dec(np.append(np.nan, pooled_ses)),  # Intercept SE is not calculated here
+            'P-value': format_dec(pooled_p_values)
+        }, index=['Intercept'] + list(Xtrain_finals[0].columns))
+        print(results)
+        print("")
+
+    # model performance
+    # https://medium.com/javarevisited/evaluating-the-logistic-regression-ae2decf42d61
+    def compute_performance_mice(self, logreg_models, Xtest_finals, y_test):
+        print("Test set: %i" % len(Xtest_finals[0]))
+        
+        y_pred_results = []
+        y_pred_proba_results = []
+        for model, X_test in zip(logreg_models, Xtest_finals):
+            y_pred_results.append(model.predict(X_test))
+            
+            y_pred_proba_results.append(model.predict_proba(X_test)[::,1])
+    
+        ypred_df = pd.DataFrame(np.row_stack(y_pred_results))
+        y_pred = np.array(ypred_df.mode(axis=0).loc[0].astype(int)) ##### used the mode of y_pred across the 10 imputations
+        y_pred_proba = np.mean(y_pred_proba_results, axis=0)
+        
+        
+        import sklearn.metrics as metrics
+        # evaluate predictions
+        mae = metrics.mean_absolute_error(y_test, y_pred)
+        print('MAE: %.3f' % mae)
+        
+        # examine the class distribution of the testing set (using a Pandas Series method)
+        y_test.value_counts()
+        
+        # calculate the percentage of ones
+        # because y_test only contains ones and zeros, we can simply calculate the mean = percentage of ones
+        y_test.mean()
+        
+        # calculate the percentage of zeros
+        1 - y_test.mean()
+        
+        # # Metrics computed from a confusion matrix (before thresholding)
+        
+        # Confusion matrix is used to evaluate the correctness of a classification model
+        from sklearn.metrics import confusion_matrix
+        confusion_matrix = confusion_matrix(y_test,y_pred)
+        confusion_matrix
+        
+        TP = confusion_matrix[1, 1]
+        TN = confusion_matrix[0, 0]
+        FP = confusion_matrix[0, 1]
+        FN = confusion_matrix[1, 0]
+        
+        # Classification Accuracy: Overall, how often is the classifier correct?
+        # use float to perform true division, not integer division
+        # print((TP + TN) / sum(map(sum, confusion_matrix))) -- this is is the same as the below automatic method
+        print('Accuracy: %.3f' % metrics.accuracy_score(y_test, y_pred))
+        
+        # Sensitivity(recall): When the actual value is positive, how often is the prediction correct?
+        sensitivity = TP / float(FN + TP)
+        
+        print('Sensitivity: %.3f' % sensitivity)
+        # print('Recall score: %.3f' % metrics.recall_score(y_test, y_pred)) # same thing as sensitivity, but recall term used in ML
+        
+        # Specificity: When the actual value is negative, how often is the prediction correct?
+        specificity = TN / float(TN + FP)
+        print('Specificity: %.3f' % specificity)
+        
+        #from imblearn.metrics import specificity_score
+        #specificity_score(y_test, y_pred)
+        
+        # Precision: When a positive value is predicted, how often is the prediction correct?
+        precision = TP / float(TP + FP)
+        #print('Precision: %.3f' % precision)
+        print('Precision: %.3f' % metrics.precision_score(y_test, y_pred))
+        
+        # F score
+        f_score = 2*TP / float(2*TP + FP + FN)
+        #print('F score: %.3f' % f_score)
+        print('F1 score: %.3f' % metrics.f1_score(y_test,y_pred))
+        
+        #Evaluate the model using other performance metrics - REDUNDANT, COMMENTED OUT FOR NOW
+        # from sklearn.metrics import classification_report
+        # print(classification_report(y_test,y_pred))
+    
+        # AUC
+        fpr, tpr, _ = metrics.roc_curve(y_test,  y_pred_proba)
+        auc = metrics.roc_auc_score(y_test, y_pred_proba)
+        print('AUC: %.3f' % auc)
+    
+        # CM matrix plot
+        from sklearn import metrics
+        cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix = confusion_matrix, display_labels = None)
+        
+        cm_display.plot()
+        plt.show()
+        # 0 = GS, 1 = POAG
+        
+        # ROC curve plot
+        plt.plot(fpr,tpr,label="auc="+str(auc))
+        plt.xlabel("False positive rate (1-specificity)")
+        plt.ylabel("True positive rate (sensitivity)")
+        plt.legend(loc=4)
+        plt.show()
