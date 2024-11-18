@@ -9,6 +9,9 @@ import numpy as np
 from PIL import Image
 from sklearn.metrics import roc_curve
 from sklearn import preprocessing
+from scipy.stats import norm
+from sklearn import metrics
+from sklearn.metrics import confusion_matrix
 
 from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException, FileUploadState, UploadState
 
@@ -672,17 +675,35 @@ class EyeAI(DerivaML):
         return wide
 
     def transform_data(self, multimodal_wide, fx_cols, y_method="all_glaucoma"):
-    """
-        Transforms multimodal data to create X_transformed and y as 0 and 1's; to apply to wide_train and wide_test
-        Args:
-            - y_method: "all_glaucoma" (Glaucoma=1, GS=0), "urgent_glaucoma" (MD<=-6 = 1, GS=0)
-    """
-        ### drop rows missing label (ie no label for POAG vs PACG vs GS)
-        multimodal_wide = multimodal_wide.dropna(subset=['Label'])
-        # drop rows where label is "Other" (should only be PACG, POAG, or GS)
-        allowed_labels = ["PACG", "POAG", "GS"]
-        multimodal_wide = multimodal_wide[multimodal_wide['Label'].isin(allowed_labels)]
-    
+        """
+            Transforms multimodal data to create X_transformed and y as 0 and 1's; to apply to wide_train and wide_test
+            Args:
+                - y_method: "all_glaucoma" (Glaucoma=1, GS=0), "urgent_glaucoma" (MD<=-6 = 1, GS=0)
+        """
+
+        ### transform y and drop NA rows
+        if y_method=="all_glaucoma":
+            y = multimodal_wide.Label # Target variable
+            # combine PACG and POAG as glaucoma
+            y = y.replace(['POAG', 'PACG'], 'Glaucoma')
+
+            ### drop rows missing label (ie no label for POAG vs PACG vs GS)
+            multimodal_wide = multimodal_wide.dropna(subset=['Label'])
+            # drop rows where label is "Other" (should only be PACG, POAG, or GS)
+            allowed_labels = ["PACG", "POAG", "GS"]
+            multimodal_wide = multimodal_wide[multimodal_wide['Label'].isin(allowed_labels)]
+        elif y_method=="urgent_glaucoma":
+            # drop rows missing MD
+            multimodal_wide = multimodal_wide.dropna(subset=['MD'])
+            y = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
+        else:
+            print("Not a valid y method")
+        # convert to 0 and 1
+        label_encoder = preprocessing.LabelEncoder()
+        y[:] = label_encoder.fit_transform(y) # fit_transform combines fit and transform
+        y = y.astype(int)
+
+        ### transform X ###
         X = multimodal_wide[fx_cols] # Features
     
         ### GHT: reformat as "Outside Normal Limits", "Within Normal Limits", "Borderline", "Other"
@@ -736,18 +757,180 @@ class EyeAI(DerivaML):
                 return float(x.strip('%'))/100
             X_transformed['VFI'] = X_transformed['VFI'].map(convert_percent)
     
-        ### transform y
-        if y_method=="all_glaucoma":
-            y = multimodal_wide.Label # Target variable
-            # combine PACG and POAG as glaucoma
-            y = y.replace(['POAG', 'PACG'], 'Glaucoma')
-        elif y_method=="urgent_glaucoma":
-            y = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
-        else:
-            print("Not a valid y method")
-        # convert to 0 and 1
-        label_encoder = preprocessing.LabelEncoder()
-        y[:] = label_encoder.fit_transform(y) # fit_transform combines fit and transform
-        y = y.astype(int)
     
         return X_transformed, y
+
+
+    # Logistic Regression Model Methods###
+    ### 2 ways to calculate p-values; NOTE THAT P VALUES MAY NOT MAKE SENSE FOR REGULARIZED MODELS
+    # https://stackoverflow.com/questions/25122999/scikit-learn-how-to-check-coefficients-significance
+    @staticmethod
+    def logit_pvalue(model, x):
+        """ Calculate z-scores for scikit-learn LogisticRegression.
+        parameters:
+            model: fitted sklearn.linear_model.LogisticRegression with intercept and large C
+            x:     matrix on which the model was fit
+        This function uses asymtptics for maximum likelihood estimates.
+        """
+        p = model.predict_proba(x)
+        n = len(p)
+        m = len(model.coef_[0]) + 1
+        coefs = np.concatenate([model.intercept_, model.coef_[0]])
+        x_full = np.matrix(np.insert(np.array(x), 0, 1, axis = 1))
+        ans = np.zeros((m, m))
+        for i in range(n):
+            ans = ans + np.dot(np.transpose(x_full[i, :]), x_full[i, :]) * p[i,1] * p[i, 0]
+        vcov = np.linalg.inv(np.matrix(ans))
+        se = np.sqrt(np.diag(vcov))
+        t =  coefs/se  
+        p = (1 - norm.cdf(abs(t))) * 2
+        return p
+        
+    @staticmethod
+    def format_dec(decimals):
+        f = ["<.001" if x<0.001 else "%.3f"%x for x in decimals]
+        return f
+    
+    # print model coefficients, ORs, p-values
+    def model_summary(self, model, X_train):
+        print("Training set: %i" % len(X_train))
+        coefs = model.coef_[0]
+        # odd ratios = e^coef
+        ors = np.exp(coefs)
+        intercept = model.intercept_[0]
+    
+    
+        p_values = self.logit_pvalue(model, X_train)
+    
+        # compare with statsmodels ### RESULT: produces same result except gives nan instead of 1.00 for insignficant p-values
+        #import statsmodels.api as sm
+        #sm_model = sm.Logit(y_train.reset_index(drop=True), sm.add_constant(X_train)).fit(disp=0) ### this uses y_train from outside this function so not really valid but oh well I just want it for testing purposes
+        #p_values=sm_model.pvalues
+        #print(self.format_dec(pvalues))
+        #sm_model.summary()
+    
+        # print results
+        results = pd.DataFrame({
+            'Coefficient': self.format_dec(np.append(intercept, coefs)),
+            'Odds Ratio': self.format_dec(np.append(np.exp(intercept), ors)),
+            'P-value': self.format_dec(p_values)
+        }, index=['Intercept'] + list(X_train.columns))
+        print(results)
+        print("")
+
+    # model performance
+    # https://medium.com/javarevisited/evaluating-the-logistic-regression-ae2decf42d61
+    # helper function for compute_performance(_youden)
+    @staticmethod
+    def calc_stats(y_pred, y_test):
+        # evaluate predictions
+        mae = metrics.mean_absolute_error(y_test, y_pred)
+        print('MAE: %.3f' % mae)
+        
+        # examine the class distribution of the testing set (using a Pandas Series method)
+        #y_test.value_counts()
+        # calculate the percentage of ones
+        # because y_test only contains ones and zeros, we can simply calculate the mean = percentage of ones
+        #y_test.mean()
+        # calculate the percentage of zeros
+        #1 - y_test.mean()
+        
+        # # Metrics computed from a confusion matrix (before thresholding)
+        
+        # Confusion matrix is used to evaluate the correctness of a classification model
+        cmatrix = confusion_matrix(y_test,y_pred)
+        
+        TP = cmatrix[1, 1]
+        TN = cmatrix[0, 0]
+        FP = cmatrix[0, 1]
+        FN = cmatrix[1, 0]
+        
+        # Classification Accuracy: Overall, how often is the classifier correct?
+        # use float to perform true division, not integer division
+        # print((TP + TN) / sum(map(sum, cmatrix))) -- this is is the same as the below automatic method
+        print('Accuracy: %.3f' % metrics.accuracy_score(y_test, y_pred))
+        
+        # Sensitivity(recall): When the actual value is positive, how often is the prediction correct?
+        sensitivity = TP / float(FN + TP)
+        print('Sensitivity: %.3f' % sensitivity)
+        # print('Recall score: %.3f' % metrics.recall_score(y_test, y_pred)) # same thing as sensitivity, but recall term used in ML
+        
+        # Specificity: When the actual value is negative, how often is the prediction correct?
+        specificity = TN / float(TN + FP)
+        print('Specificity: %.3f' % specificity)
+        
+        #from imblearn.metrics import specificity_score
+        #specificity_score(y_test, y_pred)
+        
+        # Precision: When a positive value is predicted, how often is the prediction correct?
+        precision = TP / float(TP + FP)
+        #print('Precision: %.3f' % precision)
+        print('Precision: %.3f' % metrics.precision_score(y_test, y_pred))
+        
+        # F score
+        f_score = 2*TP / float(2*TP + FP + FN)
+        #print('F score: %.3f' % f_score)
+        print('F1 score: %.3f' % metrics.f1_score(y_test,y_pred))
+    
+        # Youden's index: = TPR - FPR = Sensitivity + Specificity - 1
+        print("Calculated Youden's J index using predictions: %.3f" % (sensitivity + specificity - 1))
+        
+        #Evaluate the model using other performance metrics - REDUNDANT, COMMENTED OUT FOR NOW
+        # from sklearn.metrics import classification_report
+        # print(classification_report(y_test,y_pred))
+    
+        # display confusion matrix
+        cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix = cmatrix, display_labels = None)
+        cm_display.plot()
+        plt.show()
+    
+    def compute_performance(self, model, X_test, y_test):
+        print("Test set: %i" % len(X_test))
+        y_pred = model.predict(X_test) 
+    
+        print("-------Stats using prediction_probability of 0.5-------")
+        self.calc_stats(y_pred, y_test)
+    
+    # output performance stats corresponding to OPTIMAL prediction probability cutoff per Youden's, instead of per 0.5 cutoff
+    # plot_auc = True: plot individual AUC plot. If False, save to plot onto combined plot later
+    def compute_performance_youden(self, model, X_test, y_test, plot=True):
+        print("Model features: %s" % X_test.columns.tolist())
+        # AUC
+        y_pred_proba = model.predict_proba(X_test)[::,1]
+        fpr, tpr, thresholds = metrics.roc_curve(y_test,  y_pred_proba)
+        auc = metrics.roc_auc_score(y_test, y_pred_proba)
+        auc_formatted = "%.3f" % auc
+        print('AUC: %s' % auc_formatted)
+    
+        # Youden's J index = sens + spec - 1 = tpr + (1-fpr) -1 = tpr - fpr
+        optimal_idx = np.argmax(tpr - fpr)
+        optimal_threshold = thresholds[optimal_idx]
+        print('Optimal prediction probability threshold by Youdens J index: %.3f' % optimal_threshold)
+        youdens = tpr[optimal_idx] - fpr[optimal_idx]
+        print("Optimal Youden's J index: %.3f" % youdens)
+        print("Optimal Sensitivity: %.3f" % tpr[optimal_idx])
+        print("Optimal Specificity: %.3f" % (1 - fpr[optimal_idx]))
+    
+        ### this is not exactly the same as the optimal numbers because it summarizes the data into predictions based on youden's optimal threshold, then computes stats based on those predictions
+        #print("-------Stats using prediction_probability per YOUDEN'S-------")
+        y_pred = [1 if y > optimal_threshold else 0 for y in y_pred_proba] # Predictions using optimal threshold
+        #self.calc_stats(y_pred, y_test)
+    
+        if plot:
+            # display confusion matrix
+            cmatrix = confusion_matrix(y_test,y_pred)
+            # display confusion matrix
+            cm_display = metrics.ConfusionMatrixDisplay(confusion_matrix = cmatrix, display_labels = None)
+            cm_display.plot()
+            plt.show()
+            
+            # ROC curve plot with optimal threshold
+            plt.plot(fpr,tpr,label="AUC=%s, Youden's=%.3f" % (auc_formatted, youdens))
+            plt.xlabel("False positive rate (1-specificity)")
+            plt.ylabel("True positive rate (sensitivity)")
+            plt.title('ROC Curve')
+            plt.plot([0, 1], [0, 1], 'k--') 
+            plt.scatter(fpr[optimal_idx], tpr[optimal_idx], marker='o', color='red', label='Optimal Threshold')
+            plt.legend(loc=4)
+            plt.show()
+        return fpr, tpr, auc_formatted, optimal_idx, optimal_threshold
