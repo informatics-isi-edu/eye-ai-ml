@@ -12,6 +12,7 @@ from sklearn import preprocessing
 from scipy.stats import norm
 from sklearn import metrics
 from sklearn.metrics import confusion_matrix
+from sklearn.preprocessing import StandardScaler
 
 from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException, FileUploadState, UploadState
 
@@ -760,6 +761,110 @@ class EyeAI(DerivaML):
     
         return X_transformed, y
 
+    # current severity rule: prioritize RNFL > HVF > CDR
+    # if don't want thresholds, just make threshold 0
+    # just return the first eye if RNFL, MD, CDR all NaN
+    def pick_severe_eye(self, df, rnfl_threshold, md_threshold):
+        # Sort by 'Average_RNFL_Thickness(μm)', 'MD', and 'CDR' in descending order
+        df = df.sort_values(by=['Average_RNFL_Thickness(μm)', 'MD', 'CDR'], ascending=[True, True, False])
+    
+        ### 1. if only 1 eye has a label, just pick that eye as more severe eye (for Dr. Song's patients)
+        df = df.groupby('RID_Subject').apply(lambda group: group[group['Label'].notna()]).reset_index(drop=True)
+        
+        # 2. Select the row/eye with most severe value within the thresholds
+        def select_row(group):
+            max_value = group['Average_RNFL_Thickness(μm)'].min() # min is more severe for RNFL
+            within_value_threshold = group[np.abs(group['Average_RNFL_Thickness(μm)'] - max_value) <= rnfl_threshold] # identify eyes within threshold
+    
+            if len(within_value_threshold) > 1 or len(within_value_threshold) == 0: # if both eyes "equal" RNFL OR if RNFL is NaN, then try MD
+                max_other_column = within_value_threshold['MD'].min() # min is more severe for MD
+                within_other_column_threshold = within_value_threshold[np.abs(within_value_threshold['MD'] - max_other_column) <= md_threshold]
+    
+                if len(within_other_column_threshold) > 1 or len(within_other_column_threshold) == 0: # if both eyes "equal" MD OR if MD is NaN, then try CDR
+                    return group.sort_values(by=['CDR'], ascending=[False]).iloc[0] # since i didn't set CDR threshold, this will always pick something (even if NaN)
+                else:
+                    return within_other_column_threshold.iloc[0]
+            else:
+                return within_value_threshold.iloc[0]
+        return df.groupby('RID_Subject').apply(select_row).reset_index(drop=True)
+
+    def standardize_data(self, fx_cols, X_train, X_test):
+        # identify categorical vs numeric columns
+        categorical_vars = ['Gender', 'Ethnicity', 'GHT']
+        numeric_vars = sorted(set(fx_cols) - set(categorical_vars), key=fx_cols.index)
+    
+        scaler = StandardScaler()
+    
+        # normalize numeric columns for X_train
+        normalized_numeric_X_train = pd.DataFrame(
+            scaler.fit_transform(X_train[numeric_vars]),
+            columns = numeric_vars
+        )
+        cat_df = X_train.drop(numeric_vars, axis=1)
+        X_train = pd.concat([normalized_numeric_X_train.set_index(cat_df.index), cat_df], axis=1)
+    
+        # normalize numeric columsn for X_test, but using scaler fitted to training data to prevent data leakage
+        normalized_numeric_X_test = pd.DataFrame(
+            scaler.transform(X_test[numeric_vars]),
+            columns = numeric_vars
+        )
+        cat_df = X_test.drop(numeric_vars, axis=1)
+        X_test = pd.concat([normalized_numeric_X_test.set_index(cat_df.index), cat_df], axis=1)
+    
+        return X_train, X_test
+
+    # simple imputation fitted to X_train, but also applied to X_test
+    def simple_impute(self, X_train_keep_missing, X_test_keep_missing, strat = "mean"):
+        """
+        STRATEGIES
+        If “mean”, then replace missing values using the mean along each column. Can only be used with numeric data.
+        
+        If “median”, then replace missing values using the median along each column. Can only be used with numeric data.
+        
+        If “most_frequent”, then replace missing using the most frequent value along each column. Can be used with strings or numeric data. If there is more than one such value, only the smallest is returned.
+        
+        If “constant”, then replace missing values with fill_value. Can be used with strings or numeric data.
+        """
+        from sklearn.impute import SimpleImputer
+        imputer = SimpleImputer(missing_values=np.nan, strategy=strat)
+        imputer = imputer.fit(X_train_keep_missing)
+        X_train_imputed = imputer.transform(X_train_keep_missing)
+        X_test_imputed = imputer.transform(X_test_keep_missing)
+        # convert into pandas dataframe instead of np array
+        X_train = pd.DataFrame(X_train_imputed, columns=X_train_keep_missing.columns)
+        X_test = pd.DataFrame(X_test_imputed, columns=X_test_keep_missing.columns)
+    
+        return X_train, X_test
+
+    # return list of pandas dataframes, each containing 1 of 10 imputations
+    def mult_impute_missing(self, X, train_data=None):
+        if train_data is None:
+            train_data = X
+    
+        ### multiple imputation method using IterativeImputer from sklearn 
+        from sklearn.experimental import enable_iterative_imputer
+        from sklearn.impute import IterativeImputer
+    
+        imp = IterativeImputer(max_iter=10, random_state=0, sample_posterior=True)
+    
+        imputed_datasets = []
+        for i in range(10): # 3-10 imputations standard
+            imp.random_state = i
+            imp.fit(train_data)
+            X_imputed = imp.transform(X)
+            imputed_datasets.append(pd.DataFrame(X_imputed, columns=X.columns))
+    
+        # ALTERNATIVE
+        #from statsmodels.imputation import mice.MICEData # alternative package for MICE imputation
+        # official docs: https://www.statsmodels.org/dev/generated/statsmodels.imputation.mice.MICE.html#statsmodels.imputation.mice.MICE
+        # multiple imputation example using statsmodels: https://github.com/kshedden/mice_workshop
+        #imp = mice.MICEData(data)
+        #fml = 'y ~ x1 + x2 + x3 + x4' # variables used in multiple imputation model
+        #mice = mice.MICE(fml, sm.OLS, imp) # OLS chosen; can change this up
+        #results = mice.fit(10, 10) # 10 burn-in cycles to skip, 10 imputations
+        #print(results.summary())
+        
+        return imputed_datasets
 
     # Logistic Regression Model Methods###
     ### 2 ways to calculate p-values; NOTE THAT P VALUES MAY NOT MAKE SENSE FOR REGULARIZED MODELS
