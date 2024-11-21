@@ -11,7 +11,7 @@ from PIL import Image
 from sklearn.metrics import roc_curve
 
 from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException, FileUploadState, UploadState
-
+from deriva_ml.dataset_bag import DatasetBag
 
 class EyeAIException(DerivaMLException):
     def __init__(self, msg=""):
@@ -93,7 +93,7 @@ class EyeAI(DerivaML):
                 df.drop(index, inplace=True)
         return df
 
-    def image_tall(self, dataset_rid: str, diagnosis_tag: str) -> pd.DataFrame:
+    def image_tall(self, ds_bag: DatasetBag, diagnosis_tag: str) -> pd.DataFrame:
         """
         Retrieve tall-format image data based on provided dataset and diagnosis tag filters.
 
@@ -106,49 +106,59 @@ class EyeAI(DerivaML):
           based on the provided filters.
         """
         # Get references to tables to start path.
-        subject_dataset = self.domain_schema_instance.Subject_Dataset
-        subject = self.domain_schema_instance.Subject
-        image = self.domain_schema_instance.Image
-        observation = self.domain_schema_instance.Observation
-        diagnosis = self.domain_schema_instance.Diagnosis
-        path = subject_dataset.path
+        # subject_dataset = self.domain_schema_instance.Subject_Dataset
+        # subject = self.domain_schema_instance.Subject
+        # image = self.domain_schema_instance.Image
+        # observation = self.domain_schema_instance.Observation
+        # diagnosis = self.domain_schema_instance.Diagnosis
+        # path = subject_dataset.path
+        sys_cols = ['RCT', 'RMT', 'RCB', 'RMB']
+        subject = ds_bag.get_table_as_dataframe('Subject').rename(columns={'RID': 'Subject_RID'}).drop(columns=sys_cols)
+        observation = ds_bag.get_table_as_dataframe('Observation').rename(columns={'RID': 'Observation_RID'}).drop(columns=sys_cols)
+        image = ds_bag.get_table_as_dataframe('Image').rename(columns={'RID': 'Image_RID'}).drop(columns=sys_cols)
+        diagnosis = ds_bag.get_table_as_dataframe('Diagnosis').rename(columns={'RID': 'Diagnosis_RID'}).drop(columns=['RCT', 'RMT', 'RMB'])
 
-        results = path.filter(subject_dataset.Dataset == dataset_rid) \
-            .link(subject, on=subject_dataset.Subject == subject.RID) \
-            .link(observation, on=subject.RID == observation.Subject) \
-            .link(image, on=observation.RID == image.Observation) \
-            .filter(image.Image_Angle == '2') \
-            .link(diagnosis, on=image.RID == diagnosis.Image) \
-            .filter(diagnosis.Diagnosis_Tag == diagnosis_tag)
-
-        results = results.attributes(
-            results.Subject.RID.alias("Subject_RID"),
-            results.Observation.date_of_encounter,
-            results.Diagnosis.RID.alias("Diagnosis_RID"),
-            results.Diagnosis.RCB,
-            results.Diagnosis.Image,
-            results.Image.Image_Side,
-            results.Image.Filename,
-            results.Diagnosis.Diagnosis_Image,
-            results.Diagnosis.column_definitions['Cup/Disk_Ratio'],
-            results.Diagnosis.Image_Quality
-        )
-        image_frame = pd.DataFrame(results.fetch())
-
+        # results = path.filter(subject_dataset.Dataset == dataset_rid) \
+        #     .link(subject, on=subject_dataset.Subject == subject.RID) \
+        #     .link(observation, on=subject.RID == observation.Subject) \
+        #     .link(image, on=observation.RID == image.Observation) \
+        #     .filter(image.Image_Angle == '2') \
+        #     .link(diagnosis, on=image.RID == diagnosis.Image) \
+        #     .filter(diagnosis.Diagnosis_Tag == diagnosis_tag)
+        #
+        # results = results.attributes(
+        #     results.Subject.RID.alias("Subject_RID"),
+        #     results.Observation.date_of_encounter,
+        #     results.Diagnosis.RID.alias("Diagnosis_RID"),
+        #     results.Diagnosis.RCB,
+        #     results.Diagnosis.Image,
+        #     results.Image.Image_Side,
+        #     results.Image.Filename,
+        #     results.Diagnosis.Diagnosis_Image,
+        #     results.Diagnosis.column_definitions['Cup/Disk_Ratio'],
+        #     results.Diagnosis.Image_Quality
+        # )
+        # image_frame = pd.DataFrame(results.fetch())
+        merge_obs = pd.merge(subject, observation, left_on='Subject_RID', right_on='Subject', how='left')
+        merge_image = pd.merge(merge_obs, image, left_on='Observation_RID', right_on='Observation', how='left')
+        merge_diag = pd.merge(merge_image, diagnosis, left_on='Image_RID', right_on='Image', how='left')
+        image_frame = merge_diag[merge_diag['Image_Angle'] == '2']
+        image_frame = image_frame[image_frame['Diagnosis_Tag'] == diagnosis_tag]
+        # image_frame = image_frame[['Subject_RID', 'Image_RID', 'Diagnosis_RID', 'date_of_encounter', 'RCB',
+        #                           'Image_Side', 'Filename', 'Diagnosis_Image', 'Cup/Disk_Ratio', 'Image_Quality']]
         # Select only the first observation which included in the grading app.
         image_frame = self._find_latest_observation(image_frame)
 
         # Show grader name
         grading_tags = ["GlaucomaSuspect", "AI_glaucomasuspect_test",
                         "GlaucomaSuspect-Training", "GlaucomaSuspect-Validation"]
-        # diag_tag_vocab = pd.DataFrame(self.list_vocabulary_terms('Diagnosis_Tag'))[["RID", "Name"]]
         if diagnosis_tag in grading_tags:
             image_frame = pd.merge(image_frame, pd.DataFrame(self.user_list()), how="left", left_on='RCB', right_on='ID')
         else:
             image_frame = image_frame.assign(Full_Name=diagnosis_tag)
 
         return image_frame[
-            ['Subject_RID', 'Diagnosis_RID', 'Full_Name', 'Image', 'Image_Side',
+            ['Subject_RID', 'Image_RID', 'Diagnosis_RID', 'Full_Name', 'Image_Side',
              'Diagnosis_Image', 'Cup/Disk_Ratio', 'Image_Quality']]
 
     def reshape_table(self, frames: List[pd.DataFrame], compare_value: str):
@@ -330,8 +340,10 @@ class EyeAI(DerivaML):
                     image_file_path = image_root_path + image_file_name
                     image = Image.open(image_file_path)
                     cropped_image = image.crop(bbox)
+                    # diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
+                    #                  & (diagnosis['Image'] == image_rid)]['Diagnosis_Vocab'].iloc[0]
                     diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
-                                     & (diagnosis['Image'] == image_rid)]['Diagnosis_Vocab'].iloc[0]
+                                     & (diagnosis['Image'] == image_rid)]['Diagnosis_Image'].iloc[0]
                     if diag == 'No Glaucoma':
                         cropped_image.save(f'{str(cropped_path_no_glaucoma)}/Cropped_{image_rid}.JPG')
                     else:
