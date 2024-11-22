@@ -12,6 +12,7 @@ from sklearn.metrics import roc_curve
 
 from deriva_ml.deriva_ml_base import DerivaML, DerivaMLException, FileUploadState, UploadState
 from deriva_ml.dataset_bag import DatasetBag
+from deriva_ml.schema_setup.system_terms import MLVocab, ExecMetadataVocab
 
 class EyeAIException(DerivaMLException):
     def __init__(self, msg=""):
@@ -177,7 +178,7 @@ class EyeAI(DerivaML):
         cols = ['Image_Quality', 'Image_Side', 'Full_Name', 'Diagnosis_Image']
         for c in cols:
             long[c] = long[c].astype('category')
-        wide = pd.pivot(long, index=['Image', 'Image_Side', 'Subject_RID'], columns='Full_Name',
+        wide = pd.pivot(long, index=['Image_RID', 'Image_Side', 'Subject_RID'], columns='Full_Name',
                         values=compare_value)  # Reshape from long to wide
         return long, wide
 
@@ -199,13 +200,13 @@ class EyeAI(DerivaML):
         - List[Dict[str, Union[str, float]]]: List of dictionaries representing the generated Diagnosis.
           The Cup/Disk_Ratio is always round to 4 decimal places.
         """
-
-        result = df.groupby("Image").agg({"Cup/Disk_Ratio": cdr_func,
-                                          "Diagnosis_Image": diag_func,
-                                          "Image_Quality": image_quality_func})
+        df["Cup/Disk_Ratio"] = pd.to_numeric(df["Cup/Disk_Ratio"], errors="coerce")
+        result = df.groupby("Image_RID").agg({"Cup/Disk_Ratio": cdr_func,
+                                              "Diagnosis_Image": diag_func,
+                                              "Image_Quality": image_quality_func})
         result = result.round({'Cup/Disk_Ratio': 4})
         result = result.fillna('NaN')
-        result.reset_index('Image', inplace=True)
+        result.reset_index('Image_RID', inplace=True)
 
         return result.to_dict(orient='records')
 
@@ -266,7 +267,7 @@ class EyeAI(DerivaML):
                               'Annotation_Type': annot_type_rid}] * len(image_rids)
                             )
 
-    def filter_angle_2(self, bag_path: str) -> PurePath:
+    def filter_angle_2(self, ds_bag: DatasetBag) -> pd.DataFrame:
         """
         Filters images for just Field_2 and saves the filtered data to a CSV file.
 
@@ -276,14 +277,15 @@ class EyeAI(DerivaML):
         Returns:
         - str: Path to the generated CSV file containing filtered images.
         """
-        dataset_path = PurePath(bag_path, 'data/Image.csv')
-        dataset = pd.read_csv(dataset_path)
-        dataset_field_2 = dataset[dataset['Image_Angle'] == "2"]
-        angle2_csv_path = PurePath(self.working_dir, 'Field_2.csv')
-        dataset_field_2.to_csv(angle2_csv_path, index=False)
-        return angle2_csv_path
+        # dataset_path = PurePath(bag_path, 'data/Image.csv')
+        # dataset = pd.read_csv(dataset_path)
+        full_set = ds_bag.get_table_as_dataframe('Image')
+        dataset_field_2 = full_set[full_set['Image_Angle'] == "2"]
+        # angle2_csv_path = PurePath(self.working_dir, 'Field_2.csv')
+        # dataset_field_2.to_csv(angle2_csv_path, index=False)
+        return dataset_field_2
 
-    def get_bounding_box(self, svg_path: str) -> tuple:
+    def get_bounding_box(self, svg_path: Path) -> tuple:
         """
         Retrieves the bounding box coordinates from an SVG file.
 
@@ -303,7 +305,7 @@ class EyeAI(DerivaML):
         bbox = (x_min, y_min, x_min + width, y_min + height)
         return bbox
 
-    def create_cropped_images(self, bag_path: str, output_dir: str, crop_to_eye: bool,
+    def create_cropped_images(self, bag_path: Path, ds_bag: DatasetBag, output_dir: Path, crop_to_eye: bool,
                               exclude_list: Optional[list] = None) -> tuple:
         """
         Retrieves cropped images and saves them to the specified directory and seperated in two folders by class.
@@ -318,27 +320,29 @@ class EyeAI(DerivaML):
 
         if not exclude_list:
             exclude_list = []
-        cropped_path = Path(output_dir + "/Image_cropped")
-        cropped_path_no_glaucoma = Path(output_dir + "/Image_cropped/No_Glaucoma/")
+        cropped_path = output_dir / "Image_cropped"
+        cropped_path_no_glaucoma = cropped_path / "No_Glaucoma"
         cropped_path_no_glaucoma.mkdir(parents=True, exist_ok=True)
-        cropped_path_glaucoma = Path(output_dir + "/Image_cropped/Suspected_Glaucoma/")
+        cropped_path_glaucoma = cropped_path / "Suspected_Glaucoma"
         cropped_path_glaucoma.mkdir(parents=True, exist_ok=True)
-        svg_root_path = bag_path + '/data/assets/Image_Annotation/'
-        image_root_path = bag_path + '/data/assets/Image/'
-        image_annot_df = pd.read_csv(bag_path + '/data/Image_Annotation.csv')
-        image_df = pd.read_csv(bag_path + '/data/Image.csv')
-        diagnosis = pd.read_csv(bag_path + '/data/Diagnosis.csv')
-        # raw_crop = self.lookup_term(table_name="Annotation_Function", term_name='Raw_Cropped_to_Eye')
+        svg_root_path = bag_path / 'data/assets/Fundus_Bounding_Box'
+        # image_root_path = bag_path / 'data/assets/Image'
+        # image_annot_df = pd.read_csv(bag_path + '/data/Image_Annotation.csv')
+        # image_df = pd.read_csv(bag_path + '/data/Image.csv')
+        # diagnosis = pd.read_csv(bag_path + '/data/Diagnosis.csv')
+        image_annot_df = ds_bag.get_table_as_dataframe('Image_Annotation')
+        image_df = ds_bag.get_table_as_dataframe('Image')
+        diagnosis = ds_bag.get_table_as_dataframe('Diagnosis')
 
         for index, row in image_annot_df.iterrows():
             if row['Annotation_Function'] != 'Raw_Cropped_to_Eye' or crop_to_eye:
                 image_rid = row['Image']
                 if image_rid not in exclude_list:
-                    svg_path = svg_root_path + f'Cropped_{image_rid}.svg'
+                    svg_path = svg_root_path / f'Cropped_{image_rid}.svg'
                     bbox = self.get_bounding_box(svg_path)
                     image_file_name = image_df[image_df['RID'] == image_rid]['Filename'].values[0]
-                    image_file_path = image_root_path + image_file_name
-                    image = Image.open(image_file_path)
+                    image_file_path = bag_path / image_file_name
+                    image = Image.open(str(image_file_path))
                     cropped_image = image.crop(bbox)
                     # diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
                     #                  & (diagnosis['Image'] == image_rid)]['Diagnosis_Vocab'].iloc[0]
@@ -353,7 +357,7 @@ class EyeAI(DerivaML):
         image_annot_df.to_csv(output_csv)
         return cropped_path, output_csv
 
-    def plot_roc(self, data: pd.DataFrame) -> Path:
+    def plot_roc(self, configuration_record, data: pd.DataFrame) -> Path:
         """
         Plot Receiver Operating Characteristic (ROC) curve based on prediction results. Save the plot values into a csv file.
 
@@ -364,8 +368,9 @@ class EyeAI(DerivaML):
             Path: Path to the saved csv file of ROC plot values .
 
         """
-        output_path = self.execution_assets_path / Path("ROC")
-        output_path.mkdir(parents=True, exist_ok=True)
+        output_path = configuration_record.execution_assets_path("ROC")
+        # output_path = self.execution_assets_path / Path("ROC")
+        # output_path.mkdir(parents=True, exist_ok=True)
         pred_result = pd.read_csv(data)
         y_true = pred_result['True Label']
         scores = pred_result['Probability Score']
@@ -442,32 +447,21 @@ class EyeAI(DerivaML):
         self._batch_update(self.domain_schema_instance.Clinical_Records, entities)
 
     def extract_modality(self, data_path):
-        subject = pd.read_csv(data_path / 'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        observation = pd.read_csv(data_path / 'data/Observation.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        image = pd.read_csv(data_path / 'data/Image.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        clinic = pd.read_csv(data_path / 'data/Clinical_Records.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        observation_clinic_asso = pd.read_csv(data_path / 'data/Observation_Clinic_Asso.csv').drop(
-            columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        icd10 = pd.read_csv(data_path / 'data/Clinic_ICD10.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        icd10_asso = pd.read_csv(data_path / 'data/Clinic_ICD_Asso.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        report = pd.read_csv(data_path / 'data/Report.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        RNFL_OCR = pd.read_csv(data_path / 'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        HVF_OCR = pd.read_csv(data_path / 'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-
-        # gender_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Gender'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Subject_Gender', "Name": "Gender"})
-        # ethinicity_vocab = pd.DataFrame(self.list_vocabulary_terms('Subject_Ethnicity'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Subject_Ethnicity', "Name": "Ethnicity"})
-        # image_side_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Side_Vocab'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Image_Side_Vocab', "Name": "Side"})
-        # image_angle_vocab = pd.DataFrame(self.list_vocabulary_terms('Image_Angle_Vocab'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Image_Angle_Vocab', "Name": "Angle"})
-        # label_vocab = pd.DataFrame(self.list_vocabulary_terms('Condition_Label'))[["RID", "Name"]].rename(
-        #     columns={"RID": 'Condition_Label', "Name": "Label"})
-
-        # subject = pd.merge(subject, gender_vocab, how="left", on='Subject_Gender')
-        # subject = pd.merge(subject, ethinicity_vocab, how="left", on='Subject_Ethnicity')
-        # subject = subject[['RID', 'Subject_ID', 'Gender', 'Ethnicity']]
+        subject = ds_bag.get_table_as_dataframe('Subject')
+        observation = ds_bag.get_table_as_dataframe('Observation')
+        image = ds_bag.get_table_as_dataframe('Image')
+        clinic = ds_bag.get_table_as_dataframe('Clinical_Records')
+        report = ds_bag.get_table_as_dataframe('Report')
+        RNFL_OCR = ds_bag.get_table_as_dataframe('OCR_RNFL')
+        # subject = pd.read_csv(data_path / 'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        # observation = pd.read_csv(data_path / 'data/Observation.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        # image = pd.read_csv(data_path / 'data/Image.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        # clinic = pd.read_csv(data_path / 'data/Clinical_Records.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        # observation_clinic_asso = pd.read_csv(data_path / 'data/Observation_Clinic_Asso.csv').drop(
+        #     columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        # report = pd.read_csv(data_path / 'data/Report.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        # RNFL_OCR = pd.read_csv(data_path / 'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+        # HVF_OCR = pd.read_csv(data_path / 'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
 
         subject_observation = pd.merge(subject, observation, left_on='RID', right_on='Subject', how='left',
                                        suffixes=('_Subject', '_Observation')).drop(columns=['Subject'])
@@ -571,10 +565,16 @@ class EyeAI(DerivaML):
         
         # select clinic records by the date of encounter (on the fundus date of encounter)
         # results in 2078 records from 1062 subjects
+        # clinic_match = pd.merge(fundus, clinic, how='left', on='RID_Observation', suffixes=("", "_Clinic"))[
+        #     ['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
+        #      'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
+        #      'Date_of_Encounter', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
+        #      'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
+        #      'Clinical_ID', 'Side', 'Label']]
         clinic_match = pd.merge(fundus, clinic, how='left', on='RID_Observation', suffixes=("", "_Clinic"))[
             ['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
              'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
-             'Date_of_Encounter', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
+             'Date_of_Encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
              'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
              'Clinical_ID', 'Side', 'Label']]
 
