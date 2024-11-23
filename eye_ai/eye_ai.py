@@ -446,42 +446,19 @@ class EyeAI(DerivaML):
         entities = condition_label.to_dict(orient='records')
         self._batch_update(self.domain_schema_instance.Clinical_Records, entities)
 
-    def extract_modality(self, data_path):
-        subject = ds_bag.get_table_as_dataframe('Subject')
-        observation = ds_bag.get_table_as_dataframe('Observation')
-        image = ds_bag.get_table_as_dataframe('Image')
-        clinic = ds_bag.get_table_as_dataframe('Clinical_Records')
-        report = ds_bag.get_table_as_dataframe('Report')
-        RNFL_OCR = ds_bag.get_table_as_dataframe('OCR_RNFL')
-        # subject = pd.read_csv(data_path / 'data/Subject.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        # observation = pd.read_csv(data_path / 'data/Observation.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        # image = pd.read_csv(data_path / 'data/Image.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        # clinic = pd.read_csv(data_path / 'data/Clinical_Records.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        # observation_clinic_asso = pd.read_csv(data_path / 'data/Observation_Clinic_Asso.csv').drop(
-        #     columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        # report = pd.read_csv(data_path / 'data/Report.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        # RNFL_OCR = pd.read_csv(data_path / 'data/RNFL_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
-        # HVF_OCR = pd.read_csv(data_path / 'data/HVF_OCR.csv').drop(columns=['RCT', 'RMT', 'RCB', 'RMB'])
+    def extract_modality(self, ds_bag: DatasetBag):
+        sys_cols = ['RCT', 'RMT', 'RCB', 'RMB']
+        subject = ds_bag.get_table_as_dataframe('Subject').drop(columns=sys_cols)
+        observation = ds_bag.get_table_as_dataframe('Observation')[['RID', 'Observation_ID', 'Subject', 'date_of_encounter']]
+        image = ds_bag.get_table_as_dataframe('Image').drop(columns=sys_cols)
+        observation_clinic_asso = ds_bag.get_table_as_dataframe('Clinical_Records_Observation').drop(columns=sys_cols)
+        clinic = ds_bag.get_table_as_dataframe('Clinical_Records').drop(columns=sys_cols)
+        report = ds_bag.get_table_as_dataframe('Report').drop(columns=sys_cols)
+        RNFL_OCR = ds_bag.get_table_as_dataframe('OCR_RNFL').drop(columns=sys_cols)
+        HVF_OCR = ds_bag.get_table_as_dataframe('OCR_HVF').drop(columns=sys_cols)
 
         subject_observation = pd.merge(subject, observation, left_on='RID', right_on='Subject', how='left',
                                        suffixes=('_Subject', '_Observation')).drop(columns=['Subject'])
-        subject_obs_clinic = pd.merge(subject_observation,
-                                      observation_clinic_asso,
-                                      left_on='RID_Observation',
-                                      right_on='Observation',
-                                      how='left').drop(columns=['RID', 'Observation'])
-        subject_obs_clinic_data = pd.merge(subject_obs_clinic,
-                                           clinic,
-                                           left_on='Clinical_Records',
-                                           right_on='RID',
-                                           suffixes=("_Observation",""),
-                                           how='left').drop(
-            columns=['Clinical_Records']).rename(columns={'RID': 'RID_Clinic'})
-        # Clinical data
-        # clinic = pd.merge(subject_obs_clinic_data, image_side_vocab, how="left", left_on='Powerform_Laterality',
-        #                   right_on='Image_Side_Vocab')
-        # clinic = pd.merge(clinic, label_vocab, how="left", on='Condition_Label').drop(
-        #     columns=['Powerform_Laterality', 'Image_Side_Vocab', 'Condition_Label'])
 
         # Report_HVF
         subject_observation_report = pd.merge(subject_observation, report,
@@ -493,15 +470,15 @@ class EyeAI(DerivaML):
                        left_on='RID_Report',
                        right_on='Report',
                        suffixes=("_subject_observation_for_HVF_report", "_HVF_OCR"),
-                       how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['Report'])
-        # HVF = pd.merge(HVF, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+                       how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['URL', 'Description',
+                                                                                        'Length', 'MD5', 'Report'])
 
         def select_24_2(HVF):
             HVF_clean = HVF.dropna(subset=['RID_HVF_OCR'])
             priority = {'24-2': 1, '10-2': 2, '30-2': 3}
             HVF_clean['priority'] = HVF_clean['Field_Size'].map(priority)
             HVF_sorted = HVF_clean.sort_values(by=['RID_Observation', 'priority'])
-            result = HVF_sorted.groupby(['RID_Observation', 'Side']).first().reset_index()
+            result = HVF_sorted.groupby(['RID_Observation', 'Image_Side']).first().reset_index()
             result = result.drop(columns=['priority'])
             return result
 
@@ -512,12 +489,12 @@ class EyeAI(DerivaML):
                         left_on='RID_Report',
                         right_on='Report',
                         suffixes=("_subject_observation_for_RNFL_report", "_RNFL_OCR"),
-                        how='left').rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['Report'])
-        # RNFL = pd.merge(RNFL, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
+                        how='left').rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['URL', 'Description',
+                                                                                          'Length', 'MD5', 'Report'])
 
         def highest_signal_strength(RNFL):
             RNFL_clean = RNFL.dropna(subset=['RID_RNFL_OCR', 'Signal_Strength'])
-            idx = RNFL_clean.groupby(['RID_Observation', 'Side'])['Signal_Strength'].idxmax()
+            idx = RNFL_clean.groupby(['RID_Observation', 'Image_Side'])['Signal_Strength'].idxmax()
             result = RNFL_clean.loc[idx]
             return result
 
@@ -528,17 +505,14 @@ class EyeAI(DerivaML):
                          right_on='Observation',
                          suffixes=("_subject_observation_for_image",
                                    "_Image")).rename(columns={'RID': 'RID_Image'}).drop(columns=['Observation'])
-        # image = pd.merge(image, image_side_vocab, how="left", on='Image_Side_Vocab').drop(columns=['Image_Side_Vocab'])
-        # image = pd.merge(image, image_angle_vocab, how="left", on='Image_Angle_Vocab').drop(
-        #     columns=['Image_Angle_Vocab'])
 
         # Select the observation according fundus date of encounter
-        fundus = image[['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation', 'Observation_ID',
-                        'Date_of_Encounter']].drop_duplicates()
+        fundus = image[['RID_Subject', 'Subject_ID', 'Subject_Gender', 'Subject_Ethnicity', 'RID_Observation', 'Observation_ID',
+                        'date_of_encounter']].drop_duplicates()
 
         def closest_to_fundus(report, fundus):
-            report['Date_of_Encounter'] = pd.to_datetime(report['Date_of_Encounter']).dt.tz_localize(None)
-            fundus['Date_of_Encounter'] = pd.to_datetime(fundus['Date_of_Encounter']).dt.tz_localize(None)
+            report['date_of_encounter'] = pd.to_datetime(report['date_of_encounter']).dt.tz_localize(None)
+            fundus['date_of_encounter'] = pd.to_datetime(fundus['date_of_encounter']).dt.tz_localize(None)
             report_match = pd.DataFrame()
 
             def find_closest_date(target_date, dates):
@@ -546,17 +520,17 @@ class EyeAI(DerivaML):
 
             for idx, row in fundus.iterrows():
                 rid = row['RID_Subject']
-                target_date = row['Date_of_Encounter']
+                target_date = row['date_of_encounter']
 
                 for side in ['Left', 'Right']:
-                    filtered_data = report[(report['RID_Subject'] == rid) & (report['Side'] == side)]
+                    filtered_data = report[(report['RID_Subject'] == rid) & (report['Image_Side'] == side)]
                     if not filtered_data.empty:
                         # Find the closest date entry
-                        if sum(filtered_data['Date_of_Encounter'].isna()) > 0:
+                        if sum(filtered_data['date_of_encounter'].isna()) > 0:
                             report_match = pd.concat([report_match, filtered_data.iloc[[0]]])
                         else:
-                            closest_date = find_closest_date(target_date, filtered_data['Date_of_Encounter'])
-                            closest_entries = filtered_data[filtered_data['Date_of_Encounter'] == closest_date]
+                            closest_date = find_closest_date(target_date, filtered_data['date_of_encounter'])
+                            closest_entries = filtered_data[filtered_data['date_of_encounter'] == closest_date]
                             report_match = pd.concat([report_match, closest_entries])
             return report_match
 
@@ -564,24 +538,30 @@ class EyeAI(DerivaML):
         RNFL_match = closest_to_fundus(RNFL, fundus)
         
         # select clinic records by the date of encounter (on the fundus date of encounter)
-        # results in 2078 records from 1062 subjects
-        # clinic_match = pd.merge(fundus, clinic, how='left', on='RID_Observation', suffixes=("", "_Clinic"))[
-        #     ['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
-        #      'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
-        #      'Date_of_Encounter', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
-        #      'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
-        #      'Clinical_ID', 'Side', 'Label']]
-        clinic_match = pd.merge(fundus, clinic, how='left', on='RID_Observation', suffixes=("", "_Clinic"))[
-            ['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'RID_Observation',
-             'Observation_ID', 'Date_of_Encounter_Observation', 'RID_Clinic',
-             'Date_of_Encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
+        subject_obs_clinic = (pd.merge(fundus,
+                                       observation_clinic_asso,
+                                       left_on='RID_Observation',
+                                       right_on='Observation',
+                                       how='left').drop(columns=['RID', 'Observation']))
+        subject_obs_clinic_data = pd.merge(subject_obs_clinic,
+                                           clinic,
+                                           left_on='Clinical_Records',
+                                           right_on='RID',
+                                           suffixes=("", "_Clinic"),
+                                           how='left').drop(
+            columns=['Clinical_Records']).rename(columns={'RID': 'RID_Clinic',
+                                                          'date_of_encounter': 'date_of_encounter_Observation',
+                                                          'Date_of_Encounter': 'date_of_encounter_Clinic'})
+        clinic_match = subject_obs_clinic_data[
+            ['RID_Subject', 'Subject_ID', 'Subject_Gender', 'Subject_Ethnicity', 'RID_Observation',
+             'Observation_ID', 'date_of_encounter_Observation', 'RID_Clinic',
+             'date_of_encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
              'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
-             'Clinical_ID', 'Side', 'Label']]
+             'Clinical_ID', 'Powerform_Laterality', 'Condition_Label']]
 
-        RNFL_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_RNFL'}, inplace=True)
-        HVF_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_HVF'}, inplace=True)
-        clinic_match.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_Clinic'}, inplace=True)
-        fundus.rename(columns={'Date_of_Encounter': 'Date_of_Encounter_Fundus'}, inplace=True)
+        RNFL_match.rename(columns={'date_of_encounter': 'date_of_encounter_RNFL'}, inplace=True)
+        HVF_match.rename(columns={'date_of_encounter': 'date_of_encounter_HVF'}, inplace=True)
+        fundus.rename(columns={'date_of_encounter': 'date_of_encounter_Fundus'}, inplace=True)
 
         # Save df
         clinic_path = PurePath(self.working_dir, 'clinic.csv')
@@ -594,9 +574,9 @@ class EyeAI(DerivaML):
         fundus.to_csv(fundus_path, index=False)
         return {"Clinic": clinic_path, "HVF": HVF_path, "RNFL": RNFL_path, "Fundus": fundus_path}
 
-    def multimodal_wide(self, data_path):
-        modality_df = self.extract_modality(data_path)
-        Clinic = pd.read_csv(modality_df['Clinic'])
+    def multimodal_wide(self, ds_bag: DatasetBag):
+        modality_df = self.extract_modality(ds_bag)
+        Clinic = pd.read_csv(modality_df['Clinic']).rename(columns={'Powerform_Laterality': 'Image_Side'})
         RNFL = pd.read_csv(modality_df['RNFL'])
         Fundus = pd.read_csv(modality_df['Fundus'])
         HVF = pd.read_csv(modality_df['HVF'])
@@ -607,56 +587,56 @@ class EyeAI(DerivaML):
             Fundus['RID_Subject'],
             HVF['RID_Subject']
         ]).drop_duplicates().reset_index(drop=True)
-        sides = pd.DataFrame({'Side': ['Right', 'Left']})
+        sides = pd.DataFrame({'Image_Side': ['Right', 'Left']})
         expanded_subjects = rid_subjects.to_frame().merge(sides, how='cross')
         
-        Clinic.drop(columns=['RID_Observation', 'Observation_ID', 'Date_of_Encounter_Observation'], inplace=True)
+        Clinic.drop(columns=['RID_Observation', 'Observation_ID', 'date_of_encounter_Observation'], inplace=True)
         RNFL.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
         HVF.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
         Fundus.drop(columns=['RID_Observation', 'Observation_ID'], inplace=True)
         multimodal_wide = pd.merge(expanded_subjects, Fundus, how='left', on=['RID_Subject'])
         multimodal_wide = pd.merge(multimodal_wide, Clinic, how='left', 
-                                   on=['RID_Subject', 'Side', 'Subject_ID', 'Gender', 'Ethnicity'])
+                                   on=['RID_Subject', 'Image_Side', 'Subject_ID', 'Subject_Gender', 'Subject_Ethnicity'])
         multimodal_wide = pd.merge(multimodal_wide, HVF, how='left',
-                                   on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'])
+                                   on=['RID_Subject', 'Subject_ID', 'Subject_Gender', 'Subject_Ethnicity', 'Image_Side'])
         multimodal_wide = pd.merge(multimodal_wide, RNFL, how='left',
-                                   on=['RID_Subject', 'Subject_ID', 'Gender', 'Ethnicity', 'Side'],
+                                   on=['RID_Subject', 'Subject_ID', 'Subject_Gender', 'Subject_Ethnicity', 'Image_Side'],
                                    suffixes=('_HVF', '_RNFL'))
         return multimodal_wide
 
-    def severity_analysis(self, data_path):
-        wide = self.multimodal_wide(data_path)
+    def severity_analysis(self, ds_bag: DatasetBag):
+        wide = self.multimodal_wide(ds_bag)
 
         def compare_sides_severity(group, value_col, new_col, smaller=True): # helper method for severity_analysis
             group[new_col] = group[new_col].astype(str)
             
             if len(group) == 2:  # Ensure there are both left and right sides
-                left = group[group['Side'] == 'Left']
-                right = group[group['Side'] == 'Right']
+                left = group[group['Image_Side'] == 'Left']
+                right = group[group['Image_Side'] == 'Right']
                 if not left.empty and not right.empty:
                     left_value = left[value_col].values[0]
                     right_value = right[value_col].values[0]
                     if smaller:
                         if left_value < right_value:
-                            group.loc[group['Side'] == 'Left', new_col] = 'Left'
-                            group.loc[group['Side'] == 'Right', new_col] = 'Left'
+                            group.loc[group['Image_Side'] == 'Left', new_col] = 'Left'
+                            group.loc[group['Image_Side'] == 'Right', new_col] = 'Left'
                         elif left_value == right_value:
-                            group.loc[group['Side'] == 'Left', new_col] = 'Left/Right'
-                            group.loc[group['Side'] == 'Right', new_col] = 'Left/Right'
+                            group.loc[group['Image_Side'] == 'Left', new_col] = 'Left/Right'
+                            group.loc[group['Image_Side'] == 'Right', new_col] = 'Left/Right'
                         else:
-                            group.loc[group['Side'] == 'Left', new_col] = 'Right'
-                            group.loc[group['Side'] == 'Right', new_col] = 'Right'
+                            group.loc[group['Image_Side'] == 'Left', new_col] = 'Right'
+                            group.loc[group['Image_Side'] == 'Right', new_col] = 'Right'
                     else:
                         # Larger value means more severe
                         if left_value > right_value:
-                            group.loc[group['Side'] == 'Left', new_col] = 'Left'
-                            group.loc[group['Side'] == 'Right', new_col] = 'Left'
+                            group.loc[group['Image_Side'] == 'Left', new_col] = 'Left'
+                            group.loc[group['Image_Side'] == 'Right', new_col] = 'Left'
                         elif left_value == right_value:
-                            group.loc[group['Side'] == 'Left', new_col] = 'Left/Right'
-                            group.loc[group['Side'] == 'Right', new_col] = 'Left/Right'
+                            group.loc[group['Image_Side'] == 'Left', new_col] = 'Left/Right'
+                            group.loc[group['Image_Side'] == 'Right', new_col] = 'Left/Right'
                         else:
-                            group.loc[group['Side'] == 'Left', new_col] = 'Right'
-                            group.loc[group['Side'] == 'Right', new_col] = 'Right'
+                            group.loc[group['Image_Side'] == 'Left', new_col] = 'Right'
+                            group.loc[group['Image_Side'] == 'Right', new_col] = 'Right'
             return group
         
         wide['RNFL_severe'] = np.nan
