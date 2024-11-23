@@ -106,47 +106,17 @@ class EyeAI(DerivaML):
         - pd.DataFrame: DataFrame containing tall-format image data from fist observation of the subject,
           based on the provided filters.
         """
-        # Get references to tables to start path.
-        # subject_dataset = self.domain_schema_instance.Subject_Dataset
-        # subject = self.domain_schema_instance.Subject
-        # image = self.domain_schema_instance.Image
-        # observation = self.domain_schema_instance.Observation
-        # diagnosis = self.domain_schema_instance.Diagnosis
-        # path = subject_dataset.path
         sys_cols = ['RCT', 'RMT', 'RCB', 'RMB']
         subject = ds_bag.get_table_as_dataframe('Subject').rename(columns={'RID': 'Subject_RID'}).drop(columns=sys_cols)
         observation = ds_bag.get_table_as_dataframe('Observation').rename(columns={'RID': 'Observation_RID'}).drop(columns=sys_cols)
         image = ds_bag.get_table_as_dataframe('Image').rename(columns={'RID': 'Image_RID'}).drop(columns=sys_cols)
         diagnosis = ds_bag.get_table_as_dataframe('Diagnosis').rename(columns={'RID': 'Diagnosis_RID'}).drop(columns=['RCT', 'RMT', 'RMB'])
 
-        # results = path.filter(subject_dataset.Dataset == dataset_rid) \
-        #     .link(subject, on=subject_dataset.Subject == subject.RID) \
-        #     .link(observation, on=subject.RID == observation.Subject) \
-        #     .link(image, on=observation.RID == image.Observation) \
-        #     .filter(image.Image_Angle == '2') \
-        #     .link(diagnosis, on=image.RID == diagnosis.Image) \
-        #     .filter(diagnosis.Diagnosis_Tag == diagnosis_tag)
-        #
-        # results = results.attributes(
-        #     results.Subject.RID.alias("Subject_RID"),
-        #     results.Observation.date_of_encounter,
-        #     results.Diagnosis.RID.alias("Diagnosis_RID"),
-        #     results.Diagnosis.RCB,
-        #     results.Diagnosis.Image,
-        #     results.Image.Image_Side,
-        #     results.Image.Filename,
-        #     results.Diagnosis.Diagnosis_Image,
-        #     results.Diagnosis.column_definitions['Cup/Disk_Ratio'],
-        #     results.Diagnosis.Image_Quality
-        # )
-        # image_frame = pd.DataFrame(results.fetch())
         merge_obs = pd.merge(subject, observation, left_on='Subject_RID', right_on='Subject', how='left')
         merge_image = pd.merge(merge_obs, image, left_on='Observation_RID', right_on='Observation', how='left')
         merge_diag = pd.merge(merge_image, diagnosis, left_on='Image_RID', right_on='Image', how='left')
         image_frame = merge_diag[merge_diag['Image_Angle'] == '2']
         image_frame = image_frame[image_frame['Diagnosis_Tag'] == diagnosis_tag]
-        # image_frame = image_frame[['Subject_RID', 'Image_RID', 'Diagnosis_RID', 'date_of_encounter', 'RCB',
-        #                           'Image_Side', 'Filename', 'Diagnosis_Image', 'Cup/Disk_Ratio', 'Image_Quality']]
         # Select only the first observation which included in the grading app.
         image_frame = self._find_latest_observation(image_frame)
 
@@ -277,12 +247,8 @@ class EyeAI(DerivaML):
         Returns:
         - str: Path to the generated CSV file containing filtered images.
         """
-        # dataset_path = PurePath(bag_path, 'data/Image.csv')
-        # dataset = pd.read_csv(dataset_path)
         full_set = ds_bag.get_table_as_dataframe('Image')
         dataset_field_2 = full_set[full_set['Image_Angle'] == "2"]
-        # angle2_csv_path = PurePath(self.working_dir, 'Field_2.csv')
-        # dataset_field_2.to_csv(angle2_csv_path, index=False)
         return dataset_field_2
 
     def get_bounding_box(self, svg_path: Path) -> tuple:
@@ -326,10 +292,6 @@ class EyeAI(DerivaML):
         cropped_path_glaucoma = cropped_path / "Suspected_Glaucoma"
         cropped_path_glaucoma.mkdir(parents=True, exist_ok=True)
         svg_root_path = bag_path / 'data/assets/Fundus_Bounding_Box'
-        # image_root_path = bag_path / 'data/assets/Image'
-        # image_annot_df = pd.read_csv(bag_path + '/data/Image_Annotation.csv')
-        # image_df = pd.read_csv(bag_path + '/data/Image.csv')
-        # diagnosis = pd.read_csv(bag_path + '/data/Diagnosis.csv')
         image_annot_df = ds_bag.get_table_as_dataframe('Image_Annotation')
         image_df = ds_bag.get_table_as_dataframe('Image')
         diagnosis = ds_bag.get_table_as_dataframe('Diagnosis')
@@ -344,8 +306,6 @@ class EyeAI(DerivaML):
                     image_file_path = bag_path / image_file_name
                     image = Image.open(str(image_file_path))
                     cropped_image = image.crop(bbox)
-                    # diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
-                    #                  & (diagnosis['Image'] == image_rid)]['Diagnosis_Vocab'].iloc[0]
                     diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
                                      & (diagnosis['Image'] == image_rid)]['Diagnosis_Image'].iloc[0]
                     if diag == 'No Glaucoma':
@@ -369,8 +329,6 @@ class EyeAI(DerivaML):
 
         """
         output_path = configuration_record.execution_assets_path("ROC")
-        # output_path = self.execution_assets_path / Path("ROC")
-        # output_path.mkdir(parents=True, exist_ok=True)
         pred_result = pd.read_csv(data)
         y_true = pred_result['True Label']
         scores = pred_result['Probability Score']
@@ -438,10 +396,6 @@ class EyeAI(DerivaML):
             table.update(chunk, [table.RID], columns)
             
     def insert_condition_label(self, condition_label: pd.DataFrame):
-
-        # label_map = {e["Name"]: e["RID"] for e in self.domain_schema_instance.Condition_Label.entities()}
-
-        # condition_label.replace({"Condition_Label": label_map}, inplace=True)
         condition_label.rename(columns={'Clinical_Records': 'RID'}, inplace=True)
         entities = condition_label.to_dict(orient='records')
         self._batch_update(self.domain_schema_instance.Clinical_Records, entities)
