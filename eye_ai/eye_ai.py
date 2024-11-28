@@ -625,26 +625,30 @@ class EyeAI(DerivaML):
         """
             Transforms multimodal data to create X_transformed and y as 0 and 1's; to apply to wide_train and wide_test
             Args:
-                - y_method: "all_glaucoma" (Glaucoma=1, GS=0), "urgent_glaucoma" (MD<=-6 = 1, GS=0)
+                - y_method: "all_glaucoma" (Glaucoma=1, GS=0), "urgent_glaucoma" (MD<=-6 AND ICD10 diagnosis code of Glaucoma = 1, else =0)
         """
 
-        ### transform y and drop NA rows
-        if y_method=="all_glaucoma":
-            y = multimodal_wide.Label # Target variable
-            # combine PACG and POAG as glaucoma
-            y = y.replace(['POAG', 'PACG'], 'Glaucoma')
+        ##### transform y and drop NA rows #####
+        
+        ### drop rows missing label (ie no label for POAG vs PACG vs GS)
+        multimodal_wide = multimodal_wide.dropna(subset=['Label'])
+        # drop rows where label is "Other" (should only be PACG, POAG, or GS)
+        allowed_labels = ["PACG", "POAG", "GS"]
+        multimodal_wide = multimodal_wide[multimodal_wide['Label'].isin(allowed_labels)]
 
-            ### drop rows missing label (ie no label for POAG vs PACG vs GS)
-            multimodal_wide = multimodal_wide.dropna(subset=['Label'])
-            # drop rows where label is "Other" (should only be PACG, POAG, or GS)
-            allowed_labels = ["PACG", "POAG", "GS"]
-            multimodal_wide = multimodal_wide[multimodal_wide['Label'].isin(allowed_labels)]
+        # combine PACG and POAG as glaucoma
+        multimodal_wide['combined_label']= multimodal_wide['Label'].replace(['POAG', 'PACG'], 'Glaucoma')
+
+        if y_method=="all_glaucoma":
+            y = multimodal_wide.combined_label # Target variable
         elif y_method=="urgent_glaucoma":
             # drop rows missing MD
             multimodal_wide = multimodal_wide.dropna(subset=['MD'])
-            y = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
+            multimodal_wide['MD_label'] = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
+            y = multimodal_wide.apply(lambda row: True if (row['combined_label'] == 'Glaucoma') and (row['MD_label'] == 'mod-severe') else False, axis=1)
         else:
             print("Not a valid y method")
+        
         # convert to 0 and 1
         label_encoder = preprocessing.LabelEncoder()
         y[:] = label_encoder.fit_transform(y) # fit_transform combines fit and transform
@@ -839,9 +843,9 @@ class EyeAI(DerivaML):
 
     @staticmethod
     def format_dec(decimals):
-        f = ["<.001" if x<0.001 else "%.3f"%x for x in decimals]
-        return f
-
+        func = np.vectorize(lambda x: "<.001" if x<0.001 else "%.3f"%x)
+        return func(decimals)
+    
     # print model coefficients, ORs, p-values
     def model_summary(self, model, X_train):
         print("Training set: %i" % len(X_train))
