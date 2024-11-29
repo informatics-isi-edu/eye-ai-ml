@@ -135,7 +135,7 @@ class EyeAI(DerivaML):
 
         return image_frame[
             ['Subject_RID', 'Image_RID', 'Diagnosis_RID', 'Full_Name', 'Image_Side',
-             'Diagnosis_Image', 'Cup/Disk_Ratio', 'Image_Quality']]
+             'Diagnosis_Image', 'Cup_Disk_Ratio', 'Image_Quality']]
 
     def reshape_table(self, frames: List[pd.DataFrame], compare_value: str):
         """
