@@ -115,7 +115,7 @@ class EyeAI(DerivaML):
         subject = ds_bag.get_table_as_dataframe('Subject').rename(columns={'RID': 'Subject_RID'}).drop(columns=sys_cols)
         observation = ds_bag.get_table_as_dataframe('Observation').rename(columns={'RID': 'Observation_RID'}).drop(columns=sys_cols)
         image = ds_bag.get_table_as_dataframe('Image').rename(columns={'RID': 'Image_RID'}).drop(columns=sys_cols)
-        diagnosis = ds_bag.get_table_as_dataframe('Diagnosis').rename(columns={'RID': 'Diagnosis_RID'}).drop(columns=['RCT', 'RMT', 'RMB'])
+        diagnosis = ds_bag.get_table_as_dataframe('Image_Diagnosis').rename(columns={'RID': 'Diagnosis_RID'}).drop(columns=['RCT', 'RMT', 'RMB'])
 
         merge_obs = pd.merge(subject, observation, left_on='Subject_RID', right_on='Subject', how='left')
         merge_image = pd.merge(merge_obs, image, left_on='Observation_RID', right_on='Observation', how='left')
@@ -185,27 +185,27 @@ class EyeAI(DerivaML):
 
         return result.to_dict(orient='records')
 
-    def insert_new_diagnosis(self, pred_df: pd.DataFrame,
-                             diag_tag: str,
-                             execution_rid: str):
-        """
-        Batch insert new diagnosis entities into the Diagnosis table.
-
-        Args:
-        - pred_df (pd.DataFrame): A dataframe with column "Image" containing the image rid and "Prediction" containing 0/1.
-        - diag_tag (str): Name of the diagnosis tag associated with the new entities.
-        - execution_rid (str): RID of the execution which generated the diagnosis.
-        """
-
-        glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "Suspected Glaucoma")
-        no_glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "No Glaucoma")
-
-        mapping = {0: 'No Glaucoma', 1: 'Suspected Glaucoma'}
-        pred_df['Diagnosis_Image'] = pred_df['Prediction'].map(mapping)
-        pred_df = pred_df[['Image', 'Diagnosis_Image']]
-        entities = pred_df.to_dict(orient='records')
-        self._batch_insert(self.domain_schema.Diagnosis,
-                           [{'Execution': execution_rid, 'Diagnosis_Tag': diag_tag, **e} for e in entities])
+    # def insert_new_diagnosis(self, pred_df: pd.DataFrame,
+    #                          diag_tag: str,
+    #                          execution_rid: str):
+    #     """
+    #     Batch insert new diagnosis entities into the Diagnosis table.
+    #
+    #     Args:
+    #     - pred_df (pd.DataFrame): A dataframe with column "Image" containing the image rid and "Prediction" containing 0/1.
+    #     - diag_tag (str): Name of the diagnosis tag associated with the new entities.
+    #     - execution_rid (str): RID of the execution which generated the diagnosis.
+    #     """
+    #
+    #     glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "Suspected Glaucoma")
+    #     no_glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "No Glaucoma")
+    #
+    #     mapping = {0: 'No Glaucoma', 1: 'Suspected Glaucoma'}
+    #     pred_df['Diagnosis_Image'] = pred_df['Prediction'].map(mapping)
+    #     pred_df = pred_df[['Image', 'Diagnosis_Image']]
+    #     entities = pred_df.to_dict(orient='records')
+    #     self._batch_insert(self.domain_schema.Diagnosis,
+    #                        [{'Execution': execution_rid, 'Diagnosis_Tag': diag_tag, **e} for e in entities])
 
     def insert_image_annotation(self,
                                 annotation_function: str,
