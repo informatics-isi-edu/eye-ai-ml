@@ -297,9 +297,9 @@ class EyeAI(DerivaML):
         cropped_path_glaucoma = cropped_path / "Suspected_Glaucoma"
         cropped_path_glaucoma.mkdir(parents=True, exist_ok=True)
         svg_root_path = bag_path / 'data/assets/Fundus_Bounding_Box'
-        image_annot_df = ds_bag.get_table_as_dataframe('Image_Annotation')
+        image_annot_df = ds_bag.get_table_as_dataframe('Annotation')
         image_df = ds_bag.get_table_as_dataframe('Image')
-        diagnosis = ds_bag.get_table_as_dataframe('Diagnosis')
+        diagnosis = ds_bag.get_table_as_dataframe('Image_Diagnosis')
 
         for index, row in image_annot_df.iterrows():
             if row['Annotation_Function'] != 'Raw_Cropped_to_Eye' or crop_to_eye:
