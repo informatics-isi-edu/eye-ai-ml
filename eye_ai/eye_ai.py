@@ -14,10 +14,7 @@ from scipy.stats import norm
 from sklearn import metrics
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import StandardScaler
-
-from src.deriva_ml.deriva_ml_base import DerivaML, DerivaMLException, FileUploadState, UploadState
-from src.deriva_ml.dataset_bag import DatasetBag
-from deriva_ml.schema_setup.system_terms import MLVocab, ExecMetadataVocab
+from deriva_ml import DerivaML, DerivaMLException, FileUploadState, UploadState, DatasetBag, MLVocab, ExecMetadataVocab
 
 class EyeAIException(DerivaMLException):
     def __init__(self, msg=""):
