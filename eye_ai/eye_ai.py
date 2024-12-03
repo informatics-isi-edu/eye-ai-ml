@@ -69,7 +69,6 @@ class EyeAI(DerivaML):
                          cache_dir = cache_dir, working_dir = working_dir,
                          model_version = sys.modules[globals()["__package__"]].__version__,
                          ml_schema = ml_schema)
-        # self.schema = self.pb.schemas['eye-ai']
         self.ml_schema_instance = self.catalog.getPathBuilder().schemas[self.ml_schema]
         self.domain_schema_instance = self.catalog.getPathBuilder().schemas[self.domain_schema]
 
