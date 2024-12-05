@@ -5,16 +5,4 @@ import sys
 import os
 from pathlib import Path
 
-# The execution is operating out of a repo because there is a .git subdirectory
-repo_path = Path(__file__).parents[1]
-in_repo = (repo_path / Path(".git")).is_dir()
-setuptools_git_versioning = Path(sys.executable).parent / "setuptools-git-versioning"
-
-try:
-    if in_repo:
-        __version__ = subprocess.check_output([setuptools_git_versioning], cwd=repo_path, text=True)[:-1] 
-    else: 
-        __version__ = version("eye_ai")
-except PackageNotFoundError:
-    # package is not installed
-    pass
+__version__ = '1.1.0'

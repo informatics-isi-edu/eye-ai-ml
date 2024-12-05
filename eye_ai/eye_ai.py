@@ -4,6 +4,7 @@ from pathlib import Path, PurePath
 from typing import List, Callable, Optional
 
 from itertools import islice
+from importlib.metadata import version
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -14,7 +15,7 @@ from scipy.stats import norm
 from sklearn import metrics
 from sklearn.metrics import confusion_matrix
 from sklearn.preprocessing import StandardScaler
-from deriva_ml import DerivaML, DerivaMLException, FileUploadState, UploadState, DatasetBag, MLVocab, ExecMetadataVocab
+from deriva_ml import DerivaML, DerivaMLException, FileUploadState, UploadState, DatasetBag
 
 class EyeAIException(DerivaMLException):
     def __init__(self, msg=""):
@@ -67,7 +68,7 @@ class EyeAI(DerivaML):
         super().__init__(hostname = hostname, catalog_id = catalog_id,
                          domain_schema = 'eye-ai', project_name = 'eye-ai',
                          cache_dir = cache_dir, working_dir = working_dir,
-                         model_version = sys.modules[globals()["__package__"]].__version__,
+                         model_version=version(__name__.split('.')[0]),
                          ml_schema = ml_schema)
         self.ml_schema_instance = self.catalog.getPathBuilder().schemas[self.ml_schema]
         self.domain_schema_instance = self.catalog.getPathBuilder().schemas[self.domain_schema]
