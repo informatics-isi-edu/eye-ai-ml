@@ -181,62 +181,6 @@ class EyeAI(DerivaML):
 
         return result.to_dict(orient='records')
 
-    # def insert_new_diagnosis(self, pred_df: pd.DataFrame,
-    #                          diag_tag: str,
-    #                          execution_rid: str):
-    #     """
-    #     Batch insert new diagnosis entities into the Diagnosis table.
-    #
-    #     Args:
-    #     - pred_df (pd.DataFrame): A dataframe with column "Image" containing the image rid and "Prediction" containing 0/1.
-    #     - diag_tag (str): Name of the diagnosis tag associated with the new entities.
-    #     - execution_rid (str): RID of the execution which generated the diagnosis.
-    #     """
-    #
-    #     glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "Suspected Glaucoma")
-    #     no_glaucoma = self.lookup_term("Diagnosis_Image_Vocab", "No Glaucoma")
-    #
-    #     mapping = {0: 'No Glaucoma', 1: 'Suspected Glaucoma'}
-    #     pred_df['Diagnosis_Image'] = pred_df['Prediction'].map(mapping)
-    #     pred_df = pred_df[['Image', 'Diagnosis_Image']]
-    #     entities = pred_df.to_dict(orient='records')
-    #     self._batch_insert(self.domain_schema.Diagnosis,
-    #                        [{'Execution': execution_rid, 'Diagnosis_Tag': diag_tag, **e} for e in entities])
-
-    def insert_image_annotation(self,
-                                annotation_function: str,
-                                annotation_type: str,
-                                upload_result: dict[str, FileUploadState], metadata: pd.DataFrame) -> None:
-        """
-        Inserts image annotations into the catalog Image_Annotation table based on upload results and metadata.
-
-        Parameters:
-        - upload_result (str): The result of the image upload process.
-        - metadata (pd.DataFrame): DataFrame containing metadata information.
-
-        Returns:
-        - None
-        """
-
-        image_rids = []
-        asset_rids = []
-
-        for annotation in upload_result.values():
-            if annotation.state == UploadState.success and annotation.result is not None:
-                rid = annotation.result.get("RID")
-                if rid is not None:
-                    filename = annotation.result.get("Filename")
-                    cur = metadata[metadata['Saved SVG Name'] == filename]
-                    image_rid = cur['Image RID'].iloc[0]
-                    image_rids.append(image_rid)
-                    asset_rids.append(rid)
-        annot_func_rid = self.lookup_term(table_name="Annotation_Function", term_name=annotation_function)
-        annot_type_rid = self.lookup_term(table_name="Annotation_Type", term_name=annotation_type)
-        self.add_attributes(image_rids,
-                            asset_rids,
-                            [{'Annotation_Function': annot_func_rid,
-                              'Annotation_Type': annot_type_rid}] * len(image_rids)
-                            )
 
     def filter_angle_2(self, ds_bag: DatasetBag) -> pd.DataFrame:
         """
