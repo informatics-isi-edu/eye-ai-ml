@@ -69,8 +69,6 @@ class EyeAI(DerivaML):
                          cache_dir = cache_dir, working_dir = working_dir,
                          model_version=version(__name__.split('.')[0]),
                          ml_schema = ml_schema)
-        self.ml_schema_instance = self.catalog.getPathBuilder().schemas[self.ml_schema]
-        self.domain_schema_instance = self.catalog.getPathBuilder().schemas[self.domain_schema]
 
     @staticmethod
     def _find_latest_observation(df: pd.DataFrame):
@@ -187,7 +185,7 @@ class EyeAI(DerivaML):
         Filters images for just Field_2 and saves the filtered data to a CSV file.
 
         Parameters:
-        - bag_path (str): Path to the bag directory.
+        - ds_bag (str): DatasetBag of EyeAI dataset.
 
         Returns:
         - str: Path to the generated CSV file containing filtered images.
@@ -324,26 +322,10 @@ class EyeAI(DerivaML):
         combined_prior = combined_prior.drop(columns=['RID', 'ICD10_Eye', 'Priority'])
         return combined_prior
 
-    def _batch_update(self, table, entities):
-        """
-        Batch update entities in a table.
-
-        Args:
-        - table (datapath._TableWrapper): Table wrapper object.
-        - entities (Sequence[dict]): Sequence of entity dictionaries to update, must include RID.
-        - update_cols (List[datapath._ColumnWrapper]): List of columns to update.
-
-        """
-
-        it = iter(entities)
-        while chunk := list(islice(it, 2000)):
-            columns = [table.columns[c] for e in chunk for c in e.keys() if c != "RID"]
-            table.update(chunk, [table.RID], columns)
-
     def insert_condition_label(self, condition_label: pd.DataFrame):
         condition_label.rename(columns={'Clinical_Records': 'RID'}, inplace=True)
         entities = condition_label.to_dict(orient='records')
-        self._batch_update(self.domain_schema_instance.Clinical_Records, entities)
+        self.domain_path.Clinical_Records.insert(entities)
 
     def extract_modality(self, ds_bag: DatasetBag):
         sys_cols = ['RCT', 'RMT', 'RCB', 'RMB']
@@ -372,7 +354,7 @@ class EyeAI(DerivaML):
                        how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['URL', 'Description',
                                                                                         'Length', 'MD5', 'Report'])
 
-        def select_24_2(HVF):
+        def select_24_2(HVF: pd.DataFrame) -> pd.DataFrame:
             HVF_clean = HVF.dropna(subset=['RID_HVF_OCR'])
             priority = {'24-2': 1, '10-2': 2, '30-2': 3}
             HVF_clean['priority'] = HVF_clean['Field_Size'].map(priority)
@@ -940,7 +922,7 @@ class EyeAI(DerivaML):
         coefs = np.array([model.coef_[0] for model in logreg_models])
         ors = np.exp(coefs)
         intercepts = np.array([model.intercept_[0] for model in logreg_models])
-        p_values = np.array([logit_pvalue(model, Xtrain_finals[i]) for i, model in enumerate(logreg_models)])
+        p_values = np.array([EyeAI.logit_pvalue(model, Xtrain_finals[i]) for i, model in enumerate(logreg_models)])
 
         # Calculate pooled estimates
         pooled_coefs = np.mean(coefs, axis=0)
@@ -953,10 +935,10 @@ class EyeAI(DerivaML):
 
         # Display pooled results
         results = pd.DataFrame({
-            'Coefficient': format_dec(np.append(pooled_intercept, pooled_coefs)),
-            'Odds Ratio': format_dec(np.append(np.exp(pooled_intercept), pooled_ors)),
-            'Standard Error': format_dec(np.append(np.nan, pooled_ses)),  # Intercept SE is not calculated here
-            'P-value': format_dec(pooled_p_values)
+            'Coefficient': EyeAI.format_dec(np.append(pooled_intercept, pooled_coefs)),
+            'Odds Ratio': EyeAI.format_dec(np.append(np.exp(pooled_intercept), pooled_ors)),
+            'Standard Error': EyeAI.format_dec(np.append(np.nan, pooled_ses)),  # Intercept SE is not calculated here
+            'P-value': EyeAI.format_dec(pooled_p_values)
         }, index=['Intercept'] + list(Xtrain_finals[0].columns))
         print(results)
         print("")
