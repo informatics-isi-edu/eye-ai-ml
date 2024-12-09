@@ -265,7 +265,7 @@ class EyeAI(DerivaML):
         Plot Receiver Operating Characteristic (ROC) curve based on prediction results. Save the plot values into a csv file.
 
         Parameters:
-        - data (pd.DataFrame): DataFrame containing prediction results with columns 'True Label' and
+        - data (pd.DataFrame): DataFrame containing prediction results with columns 'True Condition_Condition_Condition_Condition_Label' and
         'Probability Score'.
         Returns:
             Path: Path to the saved csv file of ROC plot values .
@@ -547,19 +547,19 @@ class EyeAI(DerivaML):
         """
             Transforms multimodal data to create X_transformed and y as 0 and 1's; to apply to wide_train and wide_test
             Args:
-                - y_method: "all_glaucoma" (Glaucoma=1, GS=0), "urgent_glaucoma" (MD<=-6 AND ICD10 diagnosis code of Glaucoma = 1, else =0)
+                - y_method: "all_glaucoma" (Glaucoma=1, GS=0), "urgent_glaucoma" (MD<=-6 AND ICD10 diagnosis code of Glaucoma = 1, else =0), "urgent_glaucoma_nomild" (exclude mild glaucoma as class)
         """
 
         ##### transform y and drop NA rows #####
         
         ### drop rows missing label (ie no label for POAG vs PACG vs GS)
-        multimodal_wide = multimodal_wide.dropna(subset=['Label'])
+        multimodal_wide = multimodal_wide.dropna(subset=['Condition_Label'])
         # drop rows where label is "Other" (should only be PACG, POAG, or GS)
         allowed_labels = ["PACG", "POAG", "GS"]
-        multimodal_wide = multimodal_wide[multimodal_wide['Label'].isin(allowed_labels)]
+        multimodal_wide = multimodal_wide[multimodal_wide['Condition_Label'].isin(allowed_labels)]
 
         # combine PACG and POAG as glaucoma
-        multimodal_wide['combined_label']= multimodal_wide['Label'].replace(['POAG', 'PACG'], 'Glaucoma')
+        multimodal_wide['combined_label']= multimodal_wide['Condition_Label'].replace(['POAG', 'PACG'], 'Glaucoma')
 
         if y_method=="all_glaucoma":
             y = multimodal_wide.combined_label # Target variable
@@ -567,7 +567,27 @@ class EyeAI(DerivaML):
             # drop rows missing MD
             multimodal_wide = multimodal_wide.dropna(subset=['MD'])
             multimodal_wide['MD_label'] = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
-            y = multimodal_wide.apply(lambda row: True if (row['combined_label'] == 'Glaucoma') and (row['MD_label'] == 'mod-severe') else False, axis=1)
+            y = multimodal_wide.apply(lambda row: 'mod-severe' if (row['combined_label'] == 'Glaucoma') and (row['MD_label'] == 'mod-severe') else 'mild-GS', axis=1)
+        elif y_method=="urgent_glaucoma_nomild":
+            # drop rows missing MD
+            multimodal_wide = multimodal_wide.dropna(subset=['MD'])
+            multimodal_wide['MD_label'] = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
+            # drop rows with mild glaucoma
+            multimodal_wide = multimodal_wide[~((multimodal_wide['MD_label']=='mild-GS') & (multimodal_wide['combined_label']=='Glaucoma'))]
+            y = multimodal_wide.apply(lambda row: 'mod-severe' if (row['combined_label'] == 'Glaucoma') and (row['MD_label'] == 'mod-severe') else 'GS', axis=1)
+        elif y_method=="MD_only":
+            # drop rows missing MD
+            multimodal_wide = multimodal_wide.dropna(subset=['MD'])
+            multimodal_wide['MD_label'] = multimodal_wide['MD'].apply(lambda x: 'mod-severe' if x <= -6 else 'mild-GS')
+            y = multimodal_wide.MD_label
+        elif y_method=="glaucoma_lowMD":
+            # drop all rows with MD>-6
+            multimodal_wide = multimodal_wide[multimodal_wide.MD<=-6]
+            y = multimodal_wide.combined_label # Target variable
+        elif y_method=="glaucoma_highMD":
+            # drop all rows with MD<=-6
+            multimodal_wide = multimodal_wide[multimodal_wide.MD>-6]
+            y = multimodal_wide.combined_label # Target variable
         else:
             print("Not a valid y method")
         
@@ -585,13 +605,13 @@ class EyeAI(DerivaML):
             X.loc[~X['GHT'].isin(GHT_categories), 'GHT'] = np.nan # alt: 'Other'; I did np.nan bc I feel like it makes more sense to drop this variable
 
         ### Ethnicity: reformat so that Multi-racial, Other, and ethnicity not specified are combined as Other
-        if "Ethnicity" in fx_cols:
+        if "Subject_Ethnicity" in fx_cols:
             eth_categories = ["African Descent", "Asian", "Caucasian", "Latin American"]
-            X.loc[~X['Ethnicity'].isin(eth_categories), 'Ethnicity'] = 'Other'
+            X.loc[~X['Subject_Ethnicity'].isin(eth_categories), 'Subject_Ethnicity'] = 'Other'
 
         ### categorical data: encode using OneHotEncoder
         from feature_engine.encoding import OneHotEncoder
-        categorical_vars = list(set(fx_cols) & set(['Gender', 'Ethnicity', 'GHT']))  # cateogorical vars that exist
+        categorical_vars = list(set(fx_cols) & set(['Subject_Gender', 'Subject_Ethnicity', 'GHT']))  # cateogorical vars that exist
 
         if len(categorical_vars)>0:
             # replace NaN with category "Unknown", then delete this column from one-hot encoding later
@@ -603,6 +623,12 @@ class EyeAI(DerivaML):
 
             # delete Unknown columns
             X_transformed.drop(list(X_transformed.filter(regex='Unknown')), axis=1, inplace=True)
+
+            # if any columns missing, still keep them and make the column all zeros
+            # i did this manually for now for ones I know go missing
+            #for var in ["Subject_Ethnicity_African Descent", 'GHT_Borderline']:
+            #    if var not in X_transformed.columns:
+            #        X_transformed[var]=0
 
             ### sort categorical encoded columns so that they're in alphabetical order
             def sort_cols(X, var):
@@ -641,7 +667,7 @@ class EyeAI(DerivaML):
         df = df.sort_values(by=['Average_RNFL_Thickness(μm)', 'MD', 'CDR'], ascending=[True, True, False])
 
         ### 1. if only 1 eye has a label, just pick that eye as more severe eye (for Dr. Song's patients)
-        df = df.groupby('RID_Subject').apply(lambda group: group[group['Label'].notna()]).reset_index(drop=True)
+        df = df.groupby('RID_Subject').apply(lambda group: group[group['Condition_Label'].notna()]).reset_index(drop=True)
 
         # 2. Select the row/eye with most severe value within the thresholds
         def select_row(group):
@@ -662,7 +688,7 @@ class EyeAI(DerivaML):
 
     def standardize_data(self, fx_cols, X_train, X_test):
         # identify categorical vs numeric columns
-        categorical_vars = ['Gender', 'Ethnicity', 'GHT']
+        categorical_vars = ['Subject_Gender', 'Subject_Ethnicity', 'GHT']
         numeric_vars = sorted(set(fx_cols) - set(categorical_vars), key=fx_cols.index)
 
         scaler = StandardScaler()
@@ -769,7 +795,7 @@ class EyeAI(DerivaML):
         return func(decimals)
     
     # print model coefficients, ORs, p-values
-    def model_summary(self, model, X_train):
+    def model_summary(self, model, X_train, format_dec=True):
         print("Training set: %i" % len(X_train))
         coefs = model.coef_[0]
         # odd ratios = e^coef
@@ -787,11 +813,18 @@ class EyeAI(DerivaML):
         #sm_model.summary()
 
         # print results
-        results = pd.DataFrame({
-            'Coefficient': self.format_dec(np.append(intercept, coefs)),
-            'Odds Ratio': self.format_dec(np.append(np.exp(intercept), ors)),
-            'P-value': self.format_dec(p_values)
-        }, index=['Intercept'] + list(X_train.columns))
+        if format_dec:
+            results = pd.DataFrame({
+                'Coefficient': np.append(intercept, coefs),
+                'Odds Ratio': self.format_dec(np.append(np.exp(intercept), ors)),
+                'P-value': self.format_dec(p_values)
+            }, index=['Intercept'] + list(X_train.columns))
+        else:
+            results = pd.DataFrame({
+                'Coefficient': np.append(intercept, coefs),
+                'Odds Ratio': np.append(np.exp(intercept), ors),
+                'P-value': p_values
+            }, index=['Intercept'] + list(X_train.columns))
         print(results)
         print("")
 
@@ -935,7 +968,7 @@ class EyeAI(DerivaML):
 
         # Display pooled results
         results = pd.DataFrame({
-            'Coefficient': EyeAI.format_dec(np.append(pooled_intercept, pooled_coefs)),
+            'Coefficient': np.append(pooled_intercept, pooled_coefs),
             'Odds Ratio': EyeAI.format_dec(np.append(np.exp(pooled_intercept), pooled_ors)),
             'Standard Error': EyeAI.format_dec(np.append(np.nan, pooled_ses)),  # Intercept SE is not calculated here
             'P-value': EyeAI.format_dec(pooled_p_values)
