@@ -441,16 +441,7 @@ class EyeAI(DerivaML):
         hvf_match.rename(columns={'date_of_encounter': 'date_of_encounter_HVF'}, inplace=True)
         fundus.rename(columns={'date_of_encounter': 'date_of_encounter_Fundus'}, inplace=True)
 
-        # Save df
-        clinic_path = PurePath(self.working_dir, 'clinic.csv')
-        clinic_match.to_csv(clinic_path, index=False)
-        hvf_path = PurePath(self.working_dir, 'HVF.csv')
-        hvf_match.to_csv(hvf_path, index=False)
-        rnfl_path = PurePath(self.working_dir, 'RNFL.csv')
-        rnfl_match.to_csv(rnfl_path, index=False)
-        fundus_path = PurePath(self.working_dir, 'fundus.csv')
-        fundus.to_csv(fundus_path, index=False)
-        return {"Clinic": clinic_path, "HVF": hvf_path, "RNFL": rnfl_path, "Fundus": fundus_path}
+        return {"Clinic": clinic_match, "HVF": hvf_match, "RNFL": rnfl_match, "Fundus": fundus}
 
     def multimodal_wide(self, ds_bag: DatasetBag):
         modality_df = self.extract_modality(ds_bag)
