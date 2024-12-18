@@ -440,7 +440,6 @@ class EyeAI(DerivaML):
         rnfl_match.rename(columns={'date_of_encounter': 'date_of_encounter_RNFL'}, inplace=True)
         hvf_match.rename(columns={'date_of_encounter': 'date_of_encounter_HVF'}, inplace=True)
         fundus.rename(columns={'date_of_encounter': 'date_of_encounter_Fundus'}, inplace=True)
-
         return {"Clinic": clinic_match, "HVF": hvf_match, "RNFL": rnfl_match, "Fundus": fundus}
 
     def multimodal_wide(self, ds_bag: DatasetBag):
