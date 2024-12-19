@@ -7,6 +7,7 @@ import pandas as pd
 from PIL import Image
 from sklearn.metrics import roc_curve
 from deriva_ml import DerivaML, DerivaMLException, DatasetBag
+import tensorflow as tf
 
 class EyeAIException(DerivaMLException):
     def __init__(self, msg=""):
@@ -326,7 +327,7 @@ class EyeAI(DerivaML):
     def _select_24_2(hvf: pd.DataFrame) -> pd.DataFrame:
         hvf_clean = hvf.dropna(subset=['RID_HVF_OCR'])
         priority = {'24-2': 1, '10-2': 2, '30-2': 3}
-        hvf_clean['priority'] = hvf_clean['Field_Size'].map(priority)
+        hvf_clean.loc[:, 'priority'] = hvf_clean['Field_Size'].map(priority)
         hvf_sorted = hvf_clean.sort_values(by=['RID_Observation', 'priority'])
         result = hvf_sorted.groupby(['RID_Observation', 'Image_Side']).first().reset_index()
         result = result.drop(columns=['priority'])
@@ -443,6 +444,7 @@ class EyeAI(DerivaML):
         return {"Clinic": clinic_match, "HVF": hvf_match, "RNFL": rnfl_match, "Fundus": fundus}
 
     def multimodal_wide(self, ds_bag: DatasetBag):
+        # Todo add fundus image paths
         modality_df = self.extract_modality(ds_bag)
         clinic = pd.read_csv(modality_df['Clinic']).rename(columns={'Powerform_Laterality': 'Image_Side'})
         rnfl = pd.read_csv(modality_df['RNFL'])
@@ -471,3 +473,7 @@ class EyeAI(DerivaML):
                                    on=['RID_Subject', 'Subject_ID', 'Subject_Gender', 'Subject_Ethnicity', 'Image_Side'],
                                    suffixes=('_HVF', '_RNFL'))
         return multimodal_wide
+
+    def get_multimodal_tf_dataset(self, ds_bag: DatasetBag):
+        modality_df = self.extract_modality(ds_bag)
+
