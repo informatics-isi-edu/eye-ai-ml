@@ -358,7 +358,7 @@ class EyeAI(DerivaML):
                         report_match = pd.concat([report_match, closest_entries])
         return report_match
 
-    def extract_modality(self, ds_bag: DatasetBag):
+    def extract_modality(self, ds_bag: DatasetBag) -> dict[str, pd.DataFrame]:
         sys_cols = ['RCT', 'RMT', 'RCB', 'RMB']
         subject = ds_bag.get_table_as_dataframe('Subject').drop(columns=sys_cols)
         observation = ds_bag.get_table_as_dataframe('Observation')[['RID', 'Observation_ID', 'Subject', 'date_of_encounter']]
@@ -446,10 +446,10 @@ class EyeAI(DerivaML):
     def multimodal_wide(self, ds_bag: DatasetBag):
         # Todo add fundus image paths
         modality_df = self.extract_modality(ds_bag)
-        clinic = pd.read_csv(modality_df['Clinic']).rename(columns={'Powerform_Laterality': 'Image_Side'})
-        rnfl = pd.read_csv(modality_df['RNFL'])
-        fundus = pd.read_csv(modality_df['Fundus'])
-        hvf = pd.read_csv(modality_df['HVF'])
+        clinic = modality_df['Clinic'].rename(columns={'Powerform_Laterality': 'Image_Side'})
+        rnfl = modality_df['RNFL']
+        fundus = modality_df['Fundus']
+        hvf = modality_df['HVF']
         
         rid_subjects = pd.concat([
             clinic['RID_Subject'],
