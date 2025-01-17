@@ -230,7 +230,7 @@ class EyeAI(DerivaML):
         cropped_path_no_glaucoma.mkdir(parents=True, exist_ok=True)
         cropped_path_glaucoma = cropped_path / "Suspected_Glaucoma"
         cropped_path_glaucoma.mkdir(parents=True, exist_ok=True)
-        svg_root_path = bag_path / 'data/assets/Fundus_Bounding_Box'
+        svg_root_path = bag_path / 'data/asset/Fundus_Bounding_Box'
         image_annot_df = ds_bag.get_table_as_dataframe('Annotation')
         image_df = ds_bag.get_table_as_dataframe('Image')
         diagnosis = ds_bag.get_table_as_dataframe('Image_Diagnosis')
