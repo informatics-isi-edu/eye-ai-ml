@@ -252,13 +252,15 @@ class EyeAI(DerivaML):
             
             out_path_dir = str(out_path_no_glaucoma) if diag == 'No Glaucoma' else str(out_path_glaucoma)
             
-            if crop_to_eye and row['Annotation_Function'] != 'Raw_Cropped_to_Eye':
-                svg_path = svg_root_path / f'Cropped_{image_rid}.svg'
-                bbox = self.get_bounding_box(svg_path)
-                cropped_image = image.crop(bbox)
-                cropped_image.save(f'{out_path_dir}/Cropped_{image_rid}.JPG')
+            if crop_to_eye:
+                if row['Annotation_Function'] != 'Raw_Cropped_to_Eye':
+                    svg_path = svg_root_path / f'Cropped_{image_rid}.svg'
+                    bbox = self.get_bounding_box(svg_path)
+                    cropped_image = image.crop(bbox)
+                    cropped_image.save(f'{out_path_dir}/Cropped_{image_rid}.JPG')
+                else:
+                    image.save(f'{out_path_dir}/Cropped_{image_rid}.JPG')
                 image_annot_df.loc[index, 'Cropped Filename'] = 'Cropped_' + image_file_name
-                
             else:
                 image.save(f'{str(out_path_dir)}/{image_rid}.JPG')
                 image_annot_df.loc[index, 'Filename'] =  image_file_name
