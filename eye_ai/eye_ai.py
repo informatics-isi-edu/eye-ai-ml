@@ -213,7 +213,7 @@ class EyeAI(DerivaML):
     def create_cropped_images(self, bag_path: Path, ds_bag: DatasetBag, output_dir: Path, crop_to_eye: bool,
                               exclude_list: Optional[list] = None) -> tuple:
         """
-        Retrieves cropped images and saves them to the specified directory and seperated in two folders by class.
+        Retrieves images and saves them to the specified directory and separated into two folders by class. Optionally choose to crop the images or not.
 
         Parameters:
         - bag_path (str): Path to the bag directory.
@@ -225,36 +225,48 @@ class EyeAI(DerivaML):
 
         if not exclude_list:
             exclude_list = []
-        cropped_path = output_dir / "Image_cropped"
-        cropped_path_no_glaucoma = cropped_path / "No_Glaucoma"
-        cropped_path_no_glaucoma.mkdir(parents=True, exist_ok=True)
-        cropped_path_glaucoma = cropped_path / "Suspected_Glaucoma"
-        cropped_path_glaucoma.mkdir(parents=True, exist_ok=True)
+            
+        out_path = output_dir /  ds_bag.dataset_rid 
+        out_path = out_path / 'Images_Cropped' if crop_to_eye else out_path / 'Images'
+        out_path_no_glaucoma = out_path / 'No_Glaucoma'
+        out_path_no_glaucoma.mkdir(parents=True, exist_ok=True)
+        out_path_glaucoma = out_path / 'Suspected_Glaucoma'
+        out_path_glaucoma.mkdir(parents=True, exist_ok=True)
+        
         svg_root_path = bag_path / 'data/asset/Fundus_Bounding_Box'
         image_annot_df = ds_bag.get_table_as_dataframe('Annotation')
         image_df = ds_bag.get_table_as_dataframe('Image')
         diagnosis = ds_bag.get_table_as_dataframe('Image_Diagnosis')
 
         for index, row in image_annot_df.iterrows():
-            if row['Annotation_Function'] != 'Raw_Cropped_to_Eye' or crop_to_eye:
-                image_rid = row['Image']
-                if image_rid not in exclude_list:
-                    svg_path = svg_root_path / f'Cropped_{image_rid}.svg'
-                    bbox = self.get_bounding_box(svg_path)
-                    image_file_name = image_df[image_df['RID'] == image_rid]['Filename'].values[0]
-                    image_file_path = bag_path / image_file_name
-                    image = Image.open(str(image_file_path))
-                    cropped_image = image.crop(bbox)
-                    diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
+            image_rid = row['Image']
+            
+            if image_rid  in exclude_list:
+                continue
+                
+            image_file_name = image_df[image_df['RID'] == image_rid]['Filename'].values[0]
+            image_file_path = bag_path / image_file_name
+            image = Image.open(str(image_file_path))
+            diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
                                      & (diagnosis['Image'] == image_rid)]['Diagnosis_Image'].iloc[0]
-                    if diag == 'No Glaucoma':
-                        cropped_image.save(f'{str(cropped_path_no_glaucoma)}/Cropped_{image_rid}.JPG')
-                    else:
-                        cropped_image.save(f'{str(cropped_path_glaucoma)}/Cropped_{image_rid}.JPG')
-                    image_annot_df.loc[index, 'Cropped Filename'] = 'Cropped_' + image_file_name
-        output_csv = PurePath(self.working_dir, 'Cropped_Image.csv')
+            
+            out_path_dir = str(out_path_no_glaucoma) if diag == 'No Glaucoma' else str(out_path_glaucoma)
+            
+            if crop_to_eye:
+                svg_path = svg_root_path / f'Cropped_{image_rid}.svg'
+                bbox = self.get_bounding_box(svg_path)
+                cropped_image = image.crop(bbox)
+                cropped_image.save(f'{out_path_dir}/Cropped_{image_rid}.JPG')
+                image_annot_df.loc[index, 'Cropped Filename'] = 'Cropped_' + image_file_name
+            else:
+                image.save(f'{str(out_path_dir)}/{image_rid}.JPG')
+                image_annot_df.loc[index, 'Filename'] =  image_file_name
+                
+        image_csv = 'Cropped_Image.csv' if crop_to_eye else 'Image.csv'
+        output_csv = PurePath(output_dir /  ds_bag.dataset_rid, image_csv)
         image_annot_df.to_csv(output_csv)
-        return cropped_path, output_csv
+        
+        return out_path, output_csv
 
     def plot_roc(self, configuration_record, data: pd.DataFrame) -> Path:
         """
