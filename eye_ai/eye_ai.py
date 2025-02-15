@@ -216,10 +216,12 @@ class EyeAI(DerivaML):
         Retrieves images and saves them to the specified directory and separated into two folders by class. Optionally choose to crop the images or not.
 
         Parameters:
+        - ds_bag (DatasetBag): DatasetBag object of the dataset.
+        - output_dir(Path): Directory location to save the images.
         - crop_to_eye (bool): Flag indicating whether to crop images to the eye.
 
         Returns:
-        - tuple: A tuple containing the path to the directory containing cropped images and the path to the output CSV file.
+        - tuple: A tuple containing the path to the directory containing images and the path to the output CSV file.
         """
 
         if not exclude_list:
@@ -236,8 +238,6 @@ class EyeAI(DerivaML):
         image_df = ds_bag.get_table_as_dataframe('Image')
         diagnosis = ds_bag.get_table_as_dataframe('Image_Diagnosis')
         image_bounding_box_df = ds_bag.get_table_as_dataframe('Fundus_Bounding_Box')
-
-        missing_svg = []
 
         for index, row in image_annot_df.iterrows():
             image_rid = row['Image']
