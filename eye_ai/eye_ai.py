@@ -210,17 +210,18 @@ class EyeAI(DerivaML):
         bbox = (x_min, y_min, x_min + width, y_min + height)
         return bbox
 
-    def create_cropped_images(self, bag_path: Path, ds_bag: DatasetBag, output_dir: Path, crop_to_eye: bool,
+    def create_cropped_images(self,  ds_bag: DatasetBag, output_dir: Path, crop_to_eye: bool,
                               exclude_list: Optional[list] = None) -> tuple:
         """
         Retrieves images and saves them to the specified directory and separated into two folders by class. Optionally choose to crop the images or not.
 
         Parameters:
-        - bag_path (str): Path to the bag directory.
+        - ds_bag (DatasetBag): DatasetBag object of the dataset.
+        - output_dir(Path): Directory location to save the images.
         - crop_to_eye (bool): Flag indicating whether to crop images to the eye.
 
         Returns:
-        - tuple: A tuple containing the path to the directory containing cropped images and the path to the output CSV file.
+        - tuple: A tuple containing the path to the directory containing images and the path to the output CSV file.
         """
 
         if not exclude_list:
@@ -233,27 +234,43 @@ class EyeAI(DerivaML):
         out_path_glaucoma = out_path / 'Suspected_Glaucoma'
         out_path_glaucoma.mkdir(parents=True, exist_ok=True)
         
-        svg_root_path = bag_path / 'data/asset/Fundus_Bounding_Box'
         image_annot_df = ds_bag.get_table_as_dataframe('Annotation')
         image_df = ds_bag.get_table_as_dataframe('Image')
         diagnosis = ds_bag.get_table_as_dataframe('Image_Diagnosis')
+        image_bounding_box_df = ds_bag.get_table_as_dataframe('Fundus_Bounding_Box')
 
         for index, row in image_annot_df.iterrows():
             image_rid = row['Image']
             
-            if image_rid  in exclude_list:
+            if image_rid in exclude_list:
                 continue
                 
-            image_file_name = image_df[image_df['RID'] == image_rid]['Filename'].values[0]
-            image_file_path = bag_path / image_file_name
+            image_file_path = image_df[image_df['RID'] == image_rid]['Filename'].values[0]
+            image_file_name = Path(image_file_path).name
+            
+            if ds_bag.dataset_rid not in image_file_path:
+                print("Error: Image does not belongs to the dataset")
+                continue
+                
             image = Image.open(str(image_file_path))
             diag = diagnosis[(diagnosis['Diagnosis_Tag'] == 'Initial Diagnosis')
                                      & (diagnosis['Image'] == image_rid)]['Diagnosis_Image'].iloc[0]
             
             out_path_dir = str(out_path_no_glaucoma) if diag == 'No Glaucoma' else str(out_path_glaucoma)
             
+            annotation_bounding_box =  pd.merge(image_annot_df[['Image', 'Fundus_Bounding_Box']], 
+                                                image_bounding_box_df, 
+                                                left_on='Fundus_Bounding_Box', 
+                                                right_on='RID')
+         
+            svg_path = annotation_bounding_box.loc[annotation_bounding_box['Image'] == image_rid, 'Filename'].values[0]
+
+                
+            svg_path = Path(svg_path)
+            if not svg_path.exists():
+                continue
+                
             if crop_to_eye:
-                svg_path = svg_root_path / f'Cropped_{image_rid}.svg'
                 bbox = self.get_bounding_box(svg_path)
                 cropped_image = image.crop(bbox)
                 cropped_image.save(f'{out_path_dir}/Cropped_{image_rid}.JPG')
