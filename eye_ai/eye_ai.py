@@ -211,7 +211,7 @@ class EyeAI(DerivaML):
         return bbox
 
     def create_cropped_images(self,  ds_bag: DatasetBag, output_dir: Path, crop_to_eye: bool,
-                              exclude_list: Optional[list] = None) -> tuple:
+                              exclude_list: Optional[list] = None, include_only_list: Optional[list] = None) -> tuple:
         """
         Retrieves images and saves them to the specified directory and separated into two folders by class. Optionally choose to crop the images or not.
 
@@ -219,6 +219,8 @@ class EyeAI(DerivaML):
         - ds_bag (DatasetBag): DatasetBag object of the dataset.
         - output_dir(Path): Directory location to save the images.
         - crop_to_eye (bool): Flag indicating whether to crop images to the eye.
+        - exclude_list(list): A list of RID to be excluded.
+        - include_only_list(list): A list of RID to be included only. Only taking the RID in this list from ds_bag. RIDs in exclude list would still be excluded
 
         Returns:
         - tuple: A tuple containing the path to the directory containing images and the path to the output CSV file.
@@ -226,6 +228,9 @@ class EyeAI(DerivaML):
 
         if not exclude_list:
             exclude_list = []
+
+        if not include_only_list:
+            include_only_list = []
             
         out_path = output_dir /  ds_bag.dataset_rid 
         out_path = out_path / 'Images_Cropped' if crop_to_eye else out_path / 'Images'
@@ -241,7 +246,9 @@ class EyeAI(DerivaML):
 
         for index, row in image_annot_df.iterrows():
             image_rid = row['Image']
-            
+            if include_only_list and image_rid not in include_only_list:
+                continue
+                    
             if image_rid in exclude_list:
                 continue
                 
@@ -296,7 +303,7 @@ class EyeAI(DerivaML):
             Path: Path to the saved csv file of ROC plot values .
 
         """
-        output_path = configuration_record.execution_assets_path("ROC")
+        output_path = configuration_record.execution_asset_path("ROC")
         pred_result = pd.read_csv(data)
         y_true = pred_result['True Label']
         scores = pred_result['Probability Score']
@@ -505,4 +512,3 @@ class EyeAI(DerivaML):
 
     def get_multimodal_tf_dataset(self, ds_bag: DatasetBag):
         modality_df = self.extract_modality(ds_bag)
-
