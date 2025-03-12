@@ -291,11 +291,9 @@ class EyeAI(DerivaML):
                 image_annot_df.loc[index, 'Filename'] =  image_file_name
                 
         image_csv = 'Cropped_Image.csv' if crop_to_eye else 'Image.csv'
-        csv_dir = output_dir / ds_bag.dataset_rid
-        csv_dir.mkdir(parents=True, exist_ok=True)
-        output_csv = csv_dir / image_csv
-
+        output_csv = output_dir / image_csv
         image_annot_df.to_csv(output_csv)
+        
         return output_dir, output_csv
 
     def create_retfound_image_directory(self,ds_bag_train_dict: dict, 
