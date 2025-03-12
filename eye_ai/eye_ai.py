@@ -8,6 +8,7 @@ from PIL import Image
 from sklearn.metrics import roc_curve
 from deriva_ml import DerivaML, DerivaMLException, DatasetBag
 import tensorflow as tf
+import numpy as np
 
 class EyeAIException(DerivaMLException):
     def __init__(self, msg=""):
@@ -98,21 +99,24 @@ class EyeAI(DerivaML):
         - pd.DataFrame: DataFrame containing tall-format image data from fist observation of the subject,
           based on the provided filters.
         """
+
         sys_cols = ['RCT', 'RMT', 'RCB', 'RMB']
         subject = ds_bag.get_table_as_dataframe('Subject').rename(columns={'RID': 'Subject_RID'}).drop(columns=sys_cols)
         observation = ds_bag.get_table_as_dataframe('Observation').rename(columns={'RID': 'Observation_RID'}).drop(columns=sys_cols)
         image = ds_bag.get_table_as_dataframe('Image').rename(columns={'RID': 'Image_RID'}).drop(columns=sys_cols)
         diagnosis = ds_bag.get_table_as_dataframe('Image_Diagnosis').rename(columns={'RID': 'Diagnosis_RID'}).drop(columns=['RCT', 'RMT', 'RMB'])
-
+        
         merge_obs = pd.merge(subject, observation, left_on='Subject_RID', right_on='Subject', how='left')
         merge_image = pd.merge(merge_obs, image, left_on='Observation_RID', right_on='Observation', how='left')
         merge_diag = pd.merge(merge_image, diagnosis, left_on='Image_RID', right_on='Image', how='left')
         image_frame = merge_diag[merge_diag['Image_Angle'] == '2']
+
         image_frame = image_frame[image_frame['Diagnosis_Tag'] == diagnosis_tag]
         # Select only the first observation which included in the grading app.
+    
+     
         image_frame = self._find_latest_observation(image_frame)
-
-        # Show grader name
+   
         grading_tags = ["GlaucomaSuspect", "AI_glaucomasuspect_test",
                         "GlaucomaSuspect-Training", "GlaucomaSuspect-Validation"]
         if diagnosis_tag in grading_tags:
@@ -131,7 +135,7 @@ class EyeAI(DerivaML):
 
         Args:
         - frames (List): A list of dataframes with tall-format image data from fist observation of the subject
-        - compare_value (str): Column name of the compared value, choose from ["Diagnosis", "Image_Quality", "Cup/Disk_Ratio"]
+        - compare_value (str): Column name of the compared value, choose from ["Diagnosis", "Image_Quality", "Cup_Disk_Ratio"]
 
         Returns:
         - pd.DataFrame: long and wide formatted dataframe with compare values from all graders and initial diagnosis.
@@ -156,14 +160,16 @@ class EyeAI(DerivaML):
         Args:
         - df (DataFrame): Input DataFrame containing relevant columns.
         - diag_func (Callable): Function to compute Diagnosis.
-        - cdr_func (Callable): Function to compute Cup/Disk Ratio.
+        - cdr_func (Callable): Function to compute Cup_Disk Ratio.
         - image_quality_func (Callable): Function to compute Image Quality.
 
         Returns:
         - List[Dict[str, Union[str, float]]]: List of dictionaries representing the generated Diagnosis.
-          The Cup/Disk_Ratio is always round to 4 decimal places.
+          The Cup_Disk_Ratio is always round to 4 decimal places.
         """
-        df["Cup/Disk_Ratio"] = pd.to_numeric(df["Cup_Disk_Ratio"], errors="coerce")
+    
+        df["Cup_Disk_Ratio"].replace("", np.nan, inplace=True) 
+        df["Cup_Disk_Ratio"] = pd.to_numeric(df["Cup_Disk_Ratio"], errors="coerce")
         result = df.groupby("Image_RID").agg({"Cup_Disk_Ratio": cdr_func,
                                               "Diagnosis_Image": diag_func,
                                               "Image_Quality": image_quality_func})
@@ -231,12 +237,10 @@ class EyeAI(DerivaML):
 
         if not include_only_list:
             include_only_list = []
-            
-        out_path = output_dir /  ds_bag.dataset_rid 
-        out_path = out_path / 'Images_Cropped' if crop_to_eye else out_path / 'Images'
-        out_path_no_glaucoma = out_path / 'No_Glaucoma'
+
+        out_path_no_glaucoma = output_dir / 'No_Glaucoma'
         out_path_no_glaucoma.mkdir(parents=True, exist_ok=True)
-        out_path_glaucoma = out_path / 'Suspected_Glaucoma'
+        out_path_glaucoma = output_dir / 'Suspected_Glaucoma'
         out_path_glaucoma.mkdir(parents=True, exist_ok=True)
         
         image_annot_df = ds_bag.get_table_as_dataframe('Annotation')
@@ -287,10 +291,67 @@ class EyeAI(DerivaML):
                 image_annot_df.loc[index, 'Filename'] =  image_file_name
                 
         image_csv = 'Cropped_Image.csv' if crop_to_eye else 'Image.csv'
-        output_csv = PurePath(output_dir /  ds_bag.dataset_rid, image_csv)
+        csv_dir = output_dir / ds_bag.dataset_rid
+        csv_dir.mkdir(parents=True, exist_ok=True)
+        output_csv = csv_dir / image_csv
+
         image_annot_df.to_csv(output_csv)
+        return output_dir, output_csv
+
+    def create_retfound_image_directory(self,ds_bag_train_dict: dict, 
+                                             ds_bag_val_dict: dict, 
+                                             ds_bag_test_dict: dict, 
+                                             output_dir: Path, 
+                                             crop_to_eye: bool = False) -> tuple:
+        """
+        Wrapper for create_cropped_images to create correct RETFound directory format.
+
+        Parameters:
+        - ds_bag_train_dict (dict): A dictionary contains training DatasetBag.
+        - ds_bag_val_dict (dict): A dictionary contains validating DatasetBag.
+        - ds_bag_test_dict (dict): A dictionary contains testing DatasetBag.
+        - output_dir(Path): Directory location to save the images.
+        - crop_to_eye (bool): Flag indicating whether to crop images to the eye.
+  
+        Returns:
+        - tuple: A tuple containing the path to the directory containing images and the path to the output CSV file.
+        """
+     
+        if ds_bag_train_dict is None or ds_bag_val_dict is None or ds_bag_test_dict is None:
+            print("Error: RETFound required all three train, val, test to be presented")
+            return
         
-        return out_path, output_csv
+        ds_bag_train = ds_bag_train_dict["ds_bag"]
+        ds_bag_val = ds_bag_val_dict["ds_bag"]
+        ds_bag_test = ds_bag_test_dict["ds_bag"]
+
+        concat_name = f"{ds_bag_train.dataset_rid}_{ds_bag_val.dataset_rid}_{ds_bag_test.dataset_rid}"
+        dir_name = f"{concat_name}_RETFound_Cropped" if crop_to_eye else f"{concat_name}_RETFound"
+
+        output_dir = output_dir / dir_name
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        train_dir , train_csv = self.create_cropped_images(ds_bag = ds_bag_train, 
+                                            output_dir =  output_dir / "train", 
+                                            crop_to_eye =  crop_to_eye,
+                                            exclude_list = ds_bag_train_dict.get("exclude_list", []), 
+                                            include_only_list= ds_bag_train_dict.get("include_list", [])) 
+        
+        val_dir , val_csv = self.create_cropped_images(ds_bag = ds_bag_val, 
+                                            output_dir =  output_dir / "val", 
+                                            crop_to_eye =  crop_to_eye,
+                                            exclude_list = ds_bag_val_dict.get("exclude_list", []), 
+                                            include_only_list= ds_bag_val_dict.get("include_list", [])) 
+        
+        test_dir , test_csv = self.create_cropped_images(ds_bag = ds_bag_test, 
+                                            output_dir =  output_dir / "test", 
+                                            crop_to_eye =  crop_to_eye,
+                                            exclude_list = ds_bag_test_dict.get("exclude_list", []), 
+                                            include_only_list= ds_bag_test_dict.get("include_list", [])) 
+
+
+        return output_dir, train_dir, train_csv, val_dir, val_csv, test_dir, test_csv
+
 
     def plot_roc(self, configuration_record, data: pd.DataFrame) -> Path:
         """
