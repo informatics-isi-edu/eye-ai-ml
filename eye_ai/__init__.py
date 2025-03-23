@@ -5,4 +5,9 @@ import sys
 import os
 from pathlib import Path
 
-__version__ = '1.1.0'
+
+try:
+    __version__ = version("eye_ai")
+except PackageNotFoundError:
+    # package is not installed
+    pass
