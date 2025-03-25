@@ -22,7 +22,6 @@ dependencies = [
 
 [tool.setuptools.package-data]
 # include VERSION file to a package
-eye_ai = ["eye_ai/VERSION"]
 
 [tool.setuptools_scm]
 
