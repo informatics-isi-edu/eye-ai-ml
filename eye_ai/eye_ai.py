@@ -61,7 +61,6 @@ class EyeAI(DerivaML):
         super().__init__(hostname = hostname, catalog_id = catalog_id,
                          domain_schema = 'eye-ai', project_name = 'eye-ai',
                          cache_dir = cache_dir, working_dir = working_dir,
-                         model_version=version(__name__.split('.')[0]),
                          ml_schema = ml_schema)
 
     @staticmethod
