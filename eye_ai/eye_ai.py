@@ -459,6 +459,7 @@ class EyeAI(DerivaML):
         image = ds_bag.get_table_as_dataframe('Image').drop(columns=sys_cols)
         observation_clinic_asso = ds_bag.get_table_as_dataframe('Clinical_Records_Observation').drop(columns=sys_cols)
         clinic = ds_bag.get_table_as_dataframe('Clinical_Records').drop(columns=sys_cols)
+        severity = ds_bag.get_table_as_dataframe('Execution_Clinical_Records_Glaucoma_Severity')[['Clinical_Records', 'Severity_Label']]
         report = ds_bag.get_table_as_dataframe('Report').drop(columns=sys_cols)
         rnfl_ocr = ds_bag.get_table_as_dataframe('OCR_RNFL').drop(columns=sys_cols)
         hvf_ocr = ds_bag.get_table_as_dataframe('OCR_HVF').drop(columns=sys_cols)
@@ -525,12 +526,17 @@ class EyeAI(DerivaML):
             columns=['Clinical_Records']).rename(columns={'RID': 'RID_Clinic',
                                                           'date_of_encounter': 'date_of_encounter_Observation',
                                                           'Date_of_Encounter': 'date_of_encounter_Clinic'})
-        clinic_match = subject_obs_clinic_data[
+        subject_obs_clinic_severe_data = pd.merge(subject_obs_clinic_data, severity,
+                                           left_on='RID_Clinic',
+                                           right_on='Clinical_Records',
+                                           how='left').drop(columns=['Clinical_Records'])
+        
+        clinic_match = subject_obs_clinic_severe_data[
             ['RID_Subject', 'Subject_ID', 'Subject_Gender', 'Subject_Ethnicity', 'RID_Observation',
              'Observation_ID', 'date_of_encounter_Observation', 'RID_Clinic',
              'date_of_encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
              'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
-             'Clinical_ID', 'Powerform_Laterality', 'Condition_Label']]
+             'Clinical_ID', 'Powerform_Laterality', 'Condition_Label', 'Severity_Label']]
 
         rnfl_match.rename(columns={'date_of_encounter': 'date_of_encounter_RNFL'}, inplace=True)
         hvf_match.rename(columns={'date_of_encounter': 'date_of_encounter_HVF'}, inplace=True)
