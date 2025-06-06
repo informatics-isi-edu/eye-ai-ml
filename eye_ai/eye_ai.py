@@ -7,7 +7,6 @@ import pandas as pd
 from PIL import Image
 from sklearn.metrics import roc_curve
 from deriva_ml import DerivaML, DerivaMLException, DatasetBag
-import tensorflow as tf
 import numpy as np
 
 class EyeAIException(DerivaMLException):
