@@ -10,8 +10,7 @@ Open a Terminal window and execute:
 ```
 Exit the terminal. Your conda environment will auto activate the next time you open Terminal.
 
-After this step, you can see "My-Tensorflow" section on Luncher page:
- ![minid](assets/Launcher.png)
+After this step, you can see "My-Tensorflow" section on Luncher page
 
 # Get GitHub Credential
 1. Create a GitHub classic access token with repo scope(s) from: https://github.com/settings/tokens
@@ -37,6 +36,23 @@ After this step, you can see "My-Tensorflow" section on Luncher page:
     ```
 3. Change the notebook and Catalog-ML tools accordingly.
 4. Push the changes after test.
+
+# Required packaes
+1. eye-ai-ml
+```
+pip install git+https://github.com/informatics-isi-edu/eye-ai-ml.git
+```
+2. deriva-ml
+
+install from Pypi:
+```
+pip install deriva-ml
+```
+
+install from github:
+```
+pip install git+https://github.com/informatics-isi-edu/deriva-ml.git
+```
 
 # Setup GitHub To Work Nicely With Jupyter Notebooks.
 
