@@ -25,7 +25,7 @@ After this step, you can see "My-Tensorflow" section on Luncher page
    git config --global credential.helper store
     ```
 
-# Clone Catalog-ml and Catalog-exec repo
+# Clone and Catalog-exec repo
 1. Create a directory in your homedir for GitHub Repos `mkdir Repos`
 2. In the Repo dir, clone the catalog-ml repo which contains Catalog-ML method and ML model module, and catalog-exec repo
     
