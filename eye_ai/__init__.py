@@ -2,7 +2,7 @@ __all__ = [
     "EyeAI",
 ]
 
-from eye_ai import EyeAI
+from .eye_ai import EyeAI
 
 from importlib.metadata import version, PackageNotFoundError
 
