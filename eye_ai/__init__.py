@@ -1,9 +1,10 @@
-from importlib.metadata import version, PackageNotFoundError
-import subprocess
-import sys
-import os
-from pathlib import Path
+__all__ = [
+    "EyeAI",
+]
 
+from eye_ai import EyeAI
+
+from importlib.metadata import version, PackageNotFoundError
 
 try:
     __version__ = version("eye_ai")
