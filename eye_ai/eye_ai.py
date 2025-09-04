@@ -48,7 +48,7 @@ class EyeAI(DerivaML):
     """
 
     def __init__(self, hostname: str = 'www.eye-ai.org', catalog_id: str = 'eye-ai',
-                 cache_dir: str = '/data', working_dir: str = None, ml_schema: str = 'deriva-ml'):
+                 cache_dir: str = None, working_dir: str = None, ml_schema: str = 'deriva-ml'):
         """
         Initializes the EyeAI object.
 
