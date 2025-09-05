@@ -714,7 +714,7 @@ wheels = [
 
 [[package]]
 name = "deriva-ml"
-version = "1.14.38"
+version = "1.14.39"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "bump-my-version" },
@@ -730,9 +730,9 @@ dependencies = [
     { name = "setuptools" },
     { name = "setuptools-scm" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/db/b81a3f07bfd8d0dcb60d59a35139e59b5b8481631ecb0441bdea9da02a00/deriva_ml-1.14.38.tar.gz", hash = "sha256:34d6b5aa2658ecaa62c1a7c78ecd344a411f66f45afa2f484c071f1783598778", size = 3804823, upload-time = "2025-08-29T19:50:21.22Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/94/13/837636b7ae092a8156b08d71e3205bacbcd105800208faf95c93ebb832a9/deriva_ml-1.14.39.tar.gz", hash = "sha256:194cfbabe628cd56bf661ea2860105499d557aae8ed5d058cbc6294561c35b98", size = 3805121, upload-time = "2025-09-04T23:32:35.012Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/47/a2/822b59e03afefb50a6b14ad7e44968d92ed107f730badbb10a805254d265/deriva_ml-1.14.38-py3-none-any.whl", hash = "sha256:f93d3dd5ba002757cb71e73bba678706e9b1355d3ab41bbb25a3a4b1f4e42f43", size = 117323, upload-time = "2025-08-29T19:50:19.805Z" },
+    { url = "https://files.pythonhosted.org/packages/05/2b/9eea52872a035c24b9e0a0df4afec21136969ef5bce25e86f36f0c52e246/deriva_ml-1.14.39-py3-none-any.whl", hash = "sha256:3cc5369981e4d2a682b354d45184194ca2f5cf8c7ef3c19db601bccc959086c8", size = 117436, upload-time = "2025-09-04T23:32:33.399Z" },
 ]
 
 [[package]]
