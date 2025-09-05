@@ -458,8 +458,9 @@ class EyeAI(DerivaML):
         image = ds_bag.get_table_as_dataframe('Image').drop(columns=sys_cols)
         observation_clinic_asso = ds_bag.get_table_as_dataframe('Clinical_Records_Observation').drop(columns=sys_cols)
         clinic = ds_bag.get_table_as_dataframe('Clinical_Records').drop(columns=sys_cols)
-        severity = ds_bag.get_table_as_dataframe('Execution_Clinical_Records_Glaucoma_Severity')[['Clinical_Records', 'Severity_Label']]
-        report = ds_bag.get_table_as_dataframe('Report').drop(columns=sys_cols)
+        severity = ds_bag.get_table_as_dataframe('Execution_Clinical_Records_Glaucoma_Severity')[['Clinical_Records', 'ICD_Severity_Label']]
+        report_hvf = ds_bag.get_table_as_dataframe('Report_HVF').drop(columns=sys_cols)
+        report_rnfl = ds_bag.get_table_as_dataframe('Report_RNFL').drop(columns=sys_cols)
         rnfl_ocr = ds_bag.get_table_as_dataframe('OCR_RNFL').drop(columns=sys_cols)
         hvf_ocr = ds_bag.get_table_as_dataframe('OCR_HVF').drop(columns=sys_cols)
 
@@ -467,13 +468,14 @@ class EyeAI(DerivaML):
                                        suffixes=('_Subject', '_Observation')).drop(columns=['Subject'])
 
         # Report_HVF
-        subject_observation_report = pd.merge(subject_observation, report,
+        subject_observation_hvf = pd.merge(subject_observation, report_hvf,
                                               left_on='RID_Observation',
                                               right_on='Observation',
-                                              suffixes=("subject_observation_for_HVF", "Report")).drop(
-            columns=['Observation']).rename(columns={'RID': 'RID_Report'})
-        hvf = pd.merge(subject_observation_report, hvf_ocr,
-                       left_on='RID_Report',
+                                              suffixes=("subject_observation_for_HVF", "hvf")).drop(
+            columns=['Observation']).rename(columns={'RID': 'RID_HVF'})
+
+        hvf = pd.merge(subject_observation_hvf, hvf_ocr,
+                       left_on='RID_HVF',
                        right_on='Report',
                        suffixes=("_subject_observation_for_HVF_report", "_HVF_OCR"),
                        how='left').rename(columns={'RID': 'RID_HVF_OCR'}).drop(columns=['URL', 'Description',
@@ -482,12 +484,18 @@ class EyeAI(DerivaML):
         hvf = self._select_24_2(hvf)
 
         # Report_RNFL
-        rnfl = pd.merge(subject_observation_report, rnfl_ocr,
-                        left_on='RID_Report',
-                        right_on='Report',
+        subject_observation_rnfl = pd.merge(subject_observation, report_rnfl,
+                                              left_on='RID_Observation',
+                                              right_on='Observation',
+                                              suffixes=("subject_observation_for_rnfl", "rnfl")).drop(
+            columns=['Observation']).rename(columns={'RID': 'RID_RNFL'})
+
+        rnfl = pd.merge(subject_observation_rnfl, rnfl_ocr,
+                        left_on='RID_RNFL',
+                        right_on='RNFL',
                         suffixes=("_subject_observation_for_RNFL_report", "_RNFL_OCR"),
                         how='left').rename(columns={'RID': 'RID_RNFL_OCR'}).drop(columns=['URL', 'Description',
-                                                                                          'Length', 'MD5', 'Report'])
+                                                                                          'Length', 'MD5', 'RNFL'])
 
         def highest_signal_strength(rnfl):
             rnfl_clean = rnfl.dropna(subset=['RID_RNFL_OCR', 'Signal_Strength'])
@@ -535,7 +543,7 @@ class EyeAI(DerivaML):
              'Observation_ID', 'date_of_encounter_Observation', 'RID_Clinic',
              'date_of_encounter_Clinic', 'LogMAR_VA', 'Visual_Acuity_Numerator', 'IOP',
              'Refractive_Error', 'CCT', 'CDR', 'Gonioscopy', 'Condition_Display', 'Provider',
-             'Clinical_ID', 'Powerform_Laterality', 'Condition_Label', 'Severity_Label']]
+             'Clinical_ID', 'Powerform_Laterality', 'ICD_Condition_Label', 'ICD_Severity_Label']]
 
         rnfl_match.rename(columns={'date_of_encounter': 'date_of_encounter_RNFL'}, inplace=True)
         hvf_match.rename(columns={'date_of_encounter': 'date_of_encounter_HVF'}, inplace=True)
